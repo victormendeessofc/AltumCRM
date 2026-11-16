@@ -2,9 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/env";
 
-const PUBLIC = ["/entrar", "/cadastro"];
+const PUBLIC = ["/entrar", "/cadastro", "/esqueci-senha"];
 // Acessível logado ou não (a página decide o que mostrar).
-const OPEN = ["/convite"];
+const OPEN = ["/convite", "/termos", "/privacidade", "/auth/callback"];
 
 /** Renova a sessão do Supabase e faz o redirecionamento otimista. A autorização real é feita no servidor (RLS + layout). */
 export async function proxy(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC.some((p) => path === p || path.startsWith(p + "/"));
 
-  if (OPEN.some((p) => path.startsWith(p + "/"))) return response;
+  if (OPEN.some((p) => path === p || path.startsWith(p + "/"))) return response;
 
   if (!signedIn && !isPublic) {
     const url = request.nextUrl.clone();

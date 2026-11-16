@@ -1,0 +1,70 @@
+// Cadastro, organização, sair, entrar de novo e proteção de rotas.
+import { BASE, PASS, done, launch, newUserWithOrg, ok, page } from "./lib.mjs";
+
+const browser = await launch();
+const anon = await page(browser);
+await anon.goto(BASE + "/painel");
+await anon.waitForURL("**/entrar");
+ok(true, "sem login, /painel redireciona para /entrar");
+await anon.goto(BASE + "/contatos/export");
+ok(new URL(anon.url()).pathname === "/entrar", "exportação exige login");
+
+const a = await newUserWithOrg(browser, "auth");
+await a.locator("header", { hasText: "Usuário auth" }).waitFor();
+ok(true, "topbar mostra o usuário logado");
+await a.getByRole("button", { name: "Sair" }).click();
+await a.waitForURL("**/entrar");
+await a.locator("input[name=email]:visible").fill(a.email);
+await a.locator("input[name=password]:visible").fill("senhaerrada");
+await a.getByRole("button", { name: "Entrar", exact: true }).click();
+await a.waitForSelector("p[role=alert]");
+ok((await a.locator("p[role=alert]").innerText()).includes("incorretos"), "senha errada é recusada sem revelar qual campo");
+ok((await a.locator("input[name=email]:visible").inputValue()) === a.email, "o e-mail digitado é preservado depois do erro");
+await a.locator("input[name=password]:visible").fill(PASS);
+await a.getByRole("button", { name: "Entrar", exact: true }).click();
+await a.waitForURL("**/painel");
+ok(true, "entrar de novo funciona");
+await a.goto(BASE + "/entrar");
+await a.waitForURL("**/painel");
+ok(true, "logado, /entrar volta para o painel");
+// recuperação de senha
+await a.goto(BASE + "/redefinir-senha");
+await a.locator("input[name=password]:visible").fill("OutraSenha#2028");
+await a.locator("input[name=again]:visible").fill("diferente123");
+await a.getByRole("button", { name: "Salvar nova senha" }).click();
+await a.waitForSelector("p[role=alert]");
+ok((await a.locator("p[role=alert]").innerText()).includes("não são iguais"), "redefinir: senhas diferentes são recusadas");
+await a.locator("input[name=again]:visible").fill("OutraSenha#2028");
+await a.getByRole("button", { name: "Salvar nova senha" }).click();
+await a.waitForURL("**/painel");
+await a.getByRole("button", { name: "Sair" }).click();
+await a.waitForURL("**/entrar");
+await a.locator("input[name=email]:visible").fill(a.email);
+await a.locator("input[name=password]:visible").fill("OutraSenha#2028");
+await a.getByRole("button", { name: "Entrar", exact: true }).click();
+await a.waitForURL("**/painel");
+ok(true, "senha redefinida e login com a nova senha");
+
+const anon2 = await page(browser);
+await anon2.goto(BASE + "/redefinir-senha");
+await anon2.waitForURL("**/entrar");
+ok(true, "redefinir exige sessão (link válido ou login)");
+await anon2.goto(BASE + "/esqueci-senha");
+await anon2.locator("input[name=email]:visible").fill("nao-existe-" + Date.now() + "@mailinator.com");
+await anon2.getByRole("button", { name: "Enviar link" }).click();
+await anon2.waitForSelector("p[role=status]");
+const unknown = await anon2.locator("p[role=status]").innerText();
+await anon2.locator("input[name=email]:visible").fill(a.email);
+await anon2.getByRole("button", { name: "Enviar link" }).click();
+await anon2.waitForSelector("p[role=status]");
+ok(unknown === (await anon2.locator("p[role=status]").innerText()), "esqueci a senha: mesma resposta para e-mail existente e inexistente (sem enumerar contas)");
+await anon2.goto(BASE + "/auth/callback?code=invalido&next=/painel");
+await anon2.waitForURL((u) => u.pathname === "/entrar" && u.search.includes("erro=link"));
+ok((await anon2.locator("p[role=alert]").innerText()).includes("expirou"), "link inválido mostra aviso e não loga");
+await anon2.goto(BASE + "/auth/callback?code=invalido&next=https://evil.com");
+await anon2.waitForURL((u) => u.pathname === "/entrar");
+ok(!anon2.url().includes("evil.com"), "callback ignora destino externo");
+
+ok(a.errors.length === 0, "sem erros de JavaScript na página");
+await browser.close();
+done();

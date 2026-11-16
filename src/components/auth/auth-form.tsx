@@ -1,7 +1,8 @@
 "use client";
-import { useActionState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/auth-actions";
+import { useSubmit } from "@/lib/use-submit";
 
 export interface Field {
   name: string;
@@ -25,10 +26,10 @@ export function AuthForm({
   footer?: ReactNode;
   hidden?: Record<string, string>;
 }) {
-  const [state, formAction, pending] = useActionState(action, undefined);
+  const [state, formAction, pending] = useSubmit<FormState>(action);
   return (
     <div className="flex flex-col gap-4">
-    <form action={formAction} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={formAction} className="flex flex-col gap-4" noValidate>
       {hidden && Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       {fields.map((f, i) => (
         <label key={f.name} className="flex flex-col gap-1.5 text-[13px] font-medium text-fg-2">

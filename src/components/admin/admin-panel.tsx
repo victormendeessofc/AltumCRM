@@ -1,6 +1,6 @@
 "use client";
 import { Check, Copy, Trash2, UserPlus, X } from "lucide-react";
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toaster";
 import { changeRole, inviteMember, removeMember, revokeInvite, type ActionResult } from "@/lib/admin-actions";
 import { ROLES, roleLabel, type OrgRole } from "@/lib/roles";
+import { useSubmit } from "@/lib/use-submit";
 
 export interface MemberRow {
   userId: string;
@@ -149,7 +150,7 @@ function CopyLink({ link }: { link: string }) {
 
 function Invites({ invites, origin }: { invites: InviteRow[]; origin: string }) {
   const { pending, run } = useRun();
-  const [state, action, sending] = useActionState(inviteMember, undefined);
+  const [state, action, sending] = useSubmit(inviteMember);
 
   return (
     <Card className="flex flex-col gap-5">
@@ -160,7 +161,7 @@ function Invites({ invites, origin }: { invites: InviteRow[]; origin: string }) 
         </p>
       </div>
 
-      <form action={action} className="flex flex-wrap items-end gap-3">
+      <form onSubmit={action} className="flex flex-wrap items-end gap-3">
         <label className="flex min-w-[220px] flex-1 flex-col gap-1.5 text-[13px] font-medium text-fg-2">
           E-mail
           <input

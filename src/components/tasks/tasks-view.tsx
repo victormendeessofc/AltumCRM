@@ -1,7 +1,7 @@
 "use client";
 import { Check, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/cn";
 import { deleteTask, saveTask, toggleTask, type TaskState } from "@/lib/task-actions";
 import { dueBucket, formatDue, fromDueIso, type DueBucket } from "@/lib/tasks";
+import { useSubmit } from "@/lib/use-submit";
 
 export interface TaskRow {
   id: string;
@@ -43,19 +44,19 @@ const TABS: { key: TabKey; label: string; match: DueBucket }[] = [
 
 function TaskForm({ task, members, meId, canDelete, onDone }: { task: TaskRow | null; members: MemberOpt[]; meId: string; canDelete: boolean; onDone: () => void }) {
   const due = fromDueIso(task?.dueAt ?? null);
-  const [state, action, pending] = useActionState(async (prev: TaskState | undefined, fd: FormData) => {
+  const [state, action, pending] = useSubmit(async (prev: TaskState | undefined, fd: FormData) => {
     const r = await saveTask(prev, fd);
     if (r.ok) {
       toast.success(task ? "Tarefa atualizada" : "Tarefa criada");
       onDone();
     }
     return r;
-  }, undefined);
+  });
   const [busy, start] = useTransition();
   const [confirm, setConfirm] = useState(false);
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={action} className="flex flex-col gap-4">
       {task && <input type="hidden" name="id" value={task.id} />}
       <Field label="O que precisa ser feito? *">
         <input name="title" required autoFocus defaultValue={task?.title ?? ""} maxLength={200} className={fieldCls} placeholder="Ex.: Ligar para confirmar a proposta" />

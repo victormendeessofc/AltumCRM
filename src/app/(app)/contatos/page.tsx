@@ -60,6 +60,7 @@ export default async function ContatosPage({ searchParams }: PageProps<"/contato
         members={(profiles ?? []).map((p) => ({ id: p.id, name: p.full_name || p.email }))}
         companies={(companies ?? []).map((c) => c.name)}
         canDelete={session.org.role !== "seller"}
+        openNew={sp.novo === "1"}
       />
     </div>
   );

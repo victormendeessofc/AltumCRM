@@ -2,7 +2,7 @@
 import { ChevronLeft, ChevronRight, Download, Plus, Search, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
 import { deleteContact, importContacts, saveContact, type SaveState } from "@/lib/contact-actions";
 import { parseContactsCsv, type ImportPreview } from "@/lib/contacts";
+import { useSubmit } from "@/lib/use-submit";
 
 export interface ContactRow {
   id: string;
@@ -57,19 +58,19 @@ function ContactForm({
   canDelete: boolean;
   onDone: () => void;
 }) {
-  const [state, action, pending] = useActionState(async (prev: SaveState | undefined, fd: FormData) => {
+  const [state, action, pending] = useSubmit(async (prev: SaveState | undefined, fd: FormData) => {
     const r = await saveContact(prev, fd);
     if (r.ok) {
       toast.success(contact ? "Contato atualizado" : "Contato criado");
       onDone();
     }
     return r;
-  }, undefined);
+  });
   const [removing, startRemove] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={action} className="flex flex-col gap-4">
       {contact && <input type="hidden" name="id" value={contact.id} />}
       <Field label="Nome *">
         <input name="name" required autoFocus defaultValue={contact?.name ?? ""} className={fieldCls} maxLength={120} />
@@ -267,6 +268,7 @@ export function ContactsView({
   companies,
   canDelete,
   meId,
+  openNew,
 }: {
   rows: ContactRow[];
   total: number;
@@ -277,9 +279,10 @@ export function ContactsView({
   companies: string[];
   canDelete: boolean;
   meId: string;
+  openNew?: boolean;
 }) {
   const router = useRouter();
-  const [editing, setEditing] = useState<ContactRow | "new" | null>(null);
+  const [editing, setEditing] = useState<ContactRow | "new" | null>(openNew ? "new" : null);
   const [importing, setImporting] = useState(false);
   const [query, setQuery] = useState(q);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);

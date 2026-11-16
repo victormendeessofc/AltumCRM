@@ -1,18 +1,19 @@
 "use client";
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, FormError, fieldCls } from "@/components/ui/field";
 import { toast } from "@/components/ui/toaster";
 import { deleteOrganization, updateOrganization, type OrgState } from "@/lib/org-actions";
+import { useSubmit } from "@/lib/use-submit";
 
 export function OrgSettings({ name, goal, isAdmin }: { name: string; goal: number; isAdmin: boolean }) {
-  const [state, action, pending] = useActionState(async (prev: OrgState | undefined, fd: FormData) => {
+  const [state, action, pending] = useSubmit(async (prev: OrgState | undefined, fd: FormData) => {
     const r = await updateOrganization(prev, fd);
     if (r.ok) toast.success("Organização atualizada");
     return r;
-  }, undefined);
+  });
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string>();
@@ -30,7 +31,7 @@ export function OrgSettings({ name, goal, isAdmin }: { name: string; goal: numbe
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-4">
         <h2 className="text-lg font-medium">Dados da organização</h2>
-        <form action={action} className="flex flex-col gap-4">
+        <form onSubmit={action} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nome da empresa">
               <input name="name" required defaultValue={name} maxLength={80} className={fieldCls} />

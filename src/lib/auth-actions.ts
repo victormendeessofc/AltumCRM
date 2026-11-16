@@ -1,9 +1,11 @@
 "use server";
 import { redirect } from "next/navigation";
+import { getOrigin } from "@/lib/origin";
 import { safeNext } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export interface FormState {
+  ok?: boolean;
   error?: string;
   info?: string;
 }
@@ -32,7 +34,7 @@ export async function signUp(_: FormState | undefined, fd: FormData): Promise<Fo
   if (!validEmail(email)) return { error: "Informe um e-mail válido." };
   if (password.length < 8) return { error: "A senha precisa ter pelo menos 8 caracteres." };
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: `${await getOrigin()}/auth/callback?next=/painel` } });
   if (error) {
     const m = error.message.toLowerCase();
     if (m.includes("rate limit")) return { error: "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo." };
@@ -54,5 +56,31 @@ export async function createOrganization(_: FormState | undefined, fd: FormData)
   const supabase = await createClient();
   const { error } = await supabase.rpc("create_organization", { p_name: name });
   if (error) return { error: "Não foi possível criar a organização. Tente de novo." };
+  redirect("/painel");
+}
+
+/** Pede o e-mail de recuperação. A resposta é sempre a mesma, exista ou não a conta (não revela quem tem cadastro). */
+export async function requestPasswordReset(_: FormState | undefined, fd: FormData): Promise<FormState> {
+  const email = str(fd, "email");
+  if (!validEmail(email)) return { error: "Informe um e-mail válido." };
+  const supabase = await createClient();
+  await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${await getOrigin()}/auth/callback?next=/redefinir-senha` });
+  return { info: "Se esse e-mail tiver cadastro, enviamos um link para redefinir a senha. Confira também o spam." };
+}
+
+/** Define a nova senha de quem chegou pelo link do e-mail (ou de quem já está logado). */
+export async function resetPassword(_: FormState | undefined, fd: FormData): Promise<FormState> {
+  const pass = String(fd.get("password") ?? "");
+  const again = String(fd.get("again") ?? "");
+  if (pass.length < 8) return { error: "A senha precisa ter pelo menos 8 caracteres." };
+  if (pass !== again) return { error: "As senhas não são iguais." };
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return { error: "O link expirou. Peça um novo em \"Esqueci minha senha\"." };
+  const { error } = await supabase.auth.updateUser({ password: pass });
+  if (error) {
+    const m = error.message.toLowerCase();
+    return { error: m.includes("same") ? "A nova senha precisa ser diferente da atual." : "Escolha uma senha mais forte e tente de novo." };
+  }
   redirect("/painel");
 }

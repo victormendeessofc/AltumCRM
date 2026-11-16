@@ -1,6 +1,6 @@
 "use client";
 import { Trash2 } from "lucide-react";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EntityPicker } from "@/components/ui/entity-picker";
@@ -9,6 +9,7 @@ import { toast } from "@/components/ui/toaster";
 import { ACTIVITY_LABEL, type StageLite } from "@/lib/deals";
 import { addActivity, deleteDeal, getTimeline, moveDeal, saveDeal, type DealState, type TimelineItem } from "@/lib/deal-actions";
 import { formatBRL } from "@/lib/money";
+import { useSubmit } from "@/lib/use-submit";
 
 export interface DealRow {
   id: string;
@@ -123,14 +124,14 @@ export function DealDialog({
   meId: string;
   canDelete: boolean;
 }) {
-  const [state, action, pending] = useActionState(async (prev: DealState | undefined, fd: FormData) => {
+  const [state, action, pending] = useSubmit(async (prev: DealState | undefined, fd: FormData) => {
     const r = await saveDeal(prev, fd);
     if (r.ok) {
       toast.success(deal ? "Negócio atualizado" : "Negócio criado");
       onClose();
     }
     return r;
-  }, undefined);
+  });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, start] = useTransition();
 
@@ -138,7 +139,7 @@ export function DealDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()} title={deal ? "Editar negócio" : "Novo negócio"} className="w-[min(94vw,680px)]">
       {open && (
         <div className="flex flex-col gap-5" key={deal?.id ?? "new"}>
-          <form action={action} className="flex flex-col gap-4">
+          <form onSubmit={action} className="flex flex-col gap-4">
             {deal && <input type="hidden" name="id" value={deal.id} />}
             <input type="hidden" name="pipelineId" value={pipelineId} />
             <Field label="Nome do negócio *">

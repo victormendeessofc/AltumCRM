@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
 export interface InviteState {
+  ok?: boolean;
   error?: string;
   link?: string;
   email?: string;
@@ -44,7 +45,7 @@ export async function inviteMember(_: InviteState | undefined, fd: FormData): Pr
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
   revalidatePath("/admin");
-  return { link: `${proto}://${host}/convite/${data.token}`, email };
+  return { ok: true, link: `${proto}://${host}/convite/${data.token}`, email };
 }
 
 export async function revokeInvite(id: string): Promise<ActionResult> {
