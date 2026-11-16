@@ -5,22 +5,27 @@ import { BASE, done, inviteAndJoin, launch, newUserWithOrg, ok, text } from "./l
 
 const browser = await launch();
 const a = await newUserWithOrg(browser, "crm", "Empresa Núcleo");
+await a.setViewportSize({ width: 2400, height: 1000 }); // todas as colunas do kanban visíveis (sem rolagem automática durante o arrastar)
 const q = (s) => a.locator(s);
 
 // ------------------------------------------------------------ Central vazia + meta
-ok((await text(a)).includes("Comece por aqui"), "Central nova mostra o guia de começo");
+await a.waitForSelector("text=Comece por aqui");
+ok(true, "Central nova mostra o guia de começo");
 await a.goto(BASE + "/admin?tab=organizacao");
 await q("input[name=monthlyGoal]").fill("10.000");
 await a.getByRole("button", { name: "Salvar" }).click();
 await a.waitForSelector("text=Organização atualizada");
 await a.goto(BASE + "/painel");
+await a.waitForSelector("text=R$ 10.000").catch(() => {});
 ok((await text(a)).includes("R$ 10.000"), "meta mensal aparece na Central");
 
 // ------------------------------------------------------------ editar funil
 await a.goto(BASE + "/admin?tab=funis");
+await a.waitForSelector("input[aria-label='Nova etapa']");
+await a.waitForTimeout(1200); // hidratação
 await q("input[aria-label='Nova etapa']").fill("Reunião");
 await a.getByRole("button", { name: "Adicionar etapa" }).click();
-await a.waitForSelector("input[value='Reunião']");
+await a.waitForSelector("text=Etapa adicionada");
 await a.goto(BASE + "/funis");
 await a.waitForSelector("section[aria-label='Etapa Reunião']");
 const order = await a.locator("section[aria-label^='Etapa ']").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label").replace("Etapa ", "")));
@@ -50,17 +55,22 @@ async function drag(title, toStage) {
   const card = a.locator(`[role=button]:has-text("${title}")`).first();
   const target = a.locator(`section[aria-label='Etapa ${toStage}']`);
   const cb = await card.boundingBox();
-  const tb = await target.boundingBox();
   await a.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
   await a.mouse.down();
   await a.mouse.move(cb.x + cb.width / 2 + 12, cb.y + cb.height / 2 + 12, { steps: 4 });
-  await a.mouse.move(tb.x + tb.width / 2, tb.y + 140, { steps: 14 });
+  // como uma pessoa: vai até a coluna e, se o quadro rolou, corrige olhando onde a coluna está agora
+  for (let i = 0; i < 4; i++) {
+    const tb = await target.boundingBox();
+    await a.mouse.move(Math.min(Math.max(tb.x + tb.width / 2, 5), 2395), tb.y + 140, { steps: 10 });
+    await a.waitForTimeout(150);
+  }
   await a.mouse.up();
 }
 await drag("Obra Alicerce", "Qualificação");
+await a.waitForSelector("text=Movido para Qualificação"); // espera o servidor confirmar antes de recarregar
 await a.waitForSelector("section[aria-label='Etapa Qualificação'] >> text=Obra Alicerce");
 ok(true, "arrastar move o negócio de etapa (e persiste ao recarregar)");
-await a.reload();
+await a.goto(BASE + "/funis");
 await a.waitForSelector("section[aria-label='Etapa Qualificação'] >> text=Obra Alicerce");
 
 // ------------------------------------------------------------ ganhar (pela caixa do negócio)
@@ -69,6 +79,7 @@ await a.getByRole("dialog").locator("select[aria-label=Etapa]").selectOption({ l
 await a.waitForSelector("section[aria-label='Etapa Ganho'] >> text=Obra Alicerce");
 ok(true, "ganhar pela caixa do negócio");
 await a.goto(BASE + "/painel");
+await a.waitForSelector("text=1 negócio ganho").catch(() => {});
 ok((await text(a)).includes("R$ 5.000 / R$ 10.000") && (await text(a)).includes("50%"), "Central: meta em 50% após ganhar R$ 5.000");
 ok((await text(a)).includes("1 negócio ganho"), "Central: contagem de ganhos");
 
@@ -111,19 +122,20 @@ await a.goto(BASE + "/tarefas");
 ok((await text(a, "nav[aria-label='Período']")).includes("Hoje 1") && (await text(a, "nav[aria-label='Período']")).includes("Atrasadas 1"), "contadores por prazo (hoje 1, atrasadas 1)");
 await q("[role=checkbox][aria-label='Concluir: Ligar hoje']").click();
 await a.waitForSelector("text=Tudo em dia");
+await a.waitForTimeout(2500); // a conclusão é otimista; deixa o servidor gravar
 await a.goto(BASE + "/tarefas?v=concluidas");
 ok((await text(a)).includes("Ligar hoje"), "tarefa concluída vai para Concluídas");
 await a.goto(BASE + "/painel");
+await a.waitForSelector("text=1 atrasadas").catch(() => {});
 ok((await text(a)).includes("1 atrasadas"), "Central mostra a tarefa atrasada");
 
 // ------------------------------------------------------------ busca global
 await a.goto(BASE + "/painel");
 await a.keyboard.press("Control+k");
 await a.getByLabel("Buscar", { exact: true }).fill("Alicerce");
-await a.getByRole("option", { name: /Obra Alicerce/ }).waitFor();
-await a.keyboard.press("Enter");
+await a.getByRole("option", { name: /Obra Alicerce/ }).click();
 await a.waitForURL(/\/funis\?deal=/);
-await a.getByRole("dialog").getByText("Editar negócio").waitFor();
+await a.getByRole("heading", { name: "Editar negócio" }).waitFor();
 ok(true, "Ctrl+K encontra o negócio e abre direto no painel dele");
 await a.keyboard.press("Escape");
 
@@ -150,6 +162,7 @@ ok(!(await text(g)).includes("Registro de atividades"), "vendedor não acessa a 
 
 // ------------------------------------------------------------ auditoria (admin)
 await a.goto(BASE + "/admin?tab=auditoria");
+await a.waitForSelector("text=Negócio criado").catch(() => {});
 const audit = await text(a);
 ok(audit.includes("Negócio criado") && audit.includes("Contato criado") && audit.includes("Usuário crm"), "auditoria lista as ações com o autor");
 

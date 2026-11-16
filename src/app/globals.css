@@ -242,7 +242,8 @@ body {
   }
 }
 .animate-in-up {
-  animation: altum-in var(--dur-slow) var(--ease-out) both;
+  /* backwards (e não both): ao terminar, a animação sai de cena e a página deixa de ser bloco de contenção de elementos fixed (ex.: o cartão arrastado) */
+  animation: altum-in var(--dur-slow) var(--ease-out) backwards;
 }
 
 /* Reduz movimento, mas mantém transições de opacidade/cor */

@@ -2,7 +2,8 @@
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { AlertTriangle, Plus } from "lucide-react";
 import Link from "next/link";
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState, useSyncExternalStore, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ function Column({ stage, deals, onOpen, onAdd }: { stage: StageLite; deals: Deal
     <section
       ref={setNodeRef}
       aria-label={`Etapa ${stage.name}`}
+      style={{ minHeight: "calc(100dvh - 300px)" }}
       className={cn(
         "flex w-[280px] shrink-0 snap-start flex-col rounded-[var(--radius-xl)] border bg-card p-3 transition-[border-color,background-color] duration-[120ms] ease-out",
         isOver ? "border-accent bg-accent-soft" : "border-line-subtle",
@@ -116,6 +118,10 @@ function Column({ stage, deals, onOpen, onAdd }: { stage: StageLite; deals: Deal
   );
 }
 
+const noopSubscribe = () => () => {};
+/** true só no navegador (evita divergência de hidratação ao usar portal). */
+const useIsClient = () => useSyncExternalStore(noopSubscribe, () => true, () => false);
+
 export function FunisView({
   pipelines,
   pipelineId,
@@ -143,6 +149,7 @@ export function FunisView({
   openDealId: string | null;
   openNew: boolean;
 }) {
+  const isClient = useIsClient();
   const [optimistic, applyMove] = useOptimistic(deals, (state, m: { id: string; stageId: string }) =>
     state.map((d) => (d.id === m.id ? { ...d, stageId: m.stageId, stageChangedAt: new Date().toISOString() } : d)),
   );
@@ -258,7 +265,7 @@ export function FunisView({
       </div>
 
       {view === "kanban" ? (
-        <DndContext sensors={sensors} onDragStart={(e: DragStartEvent) => setActive(optimistic.find((d) => d.id === e.active.id) ?? null)} onDragEnd={onDragEnd} onDragCancel={() => setActive(null)}>
+        <DndContext sensors={sensors} autoScroll={{ threshold: { x: 0.12, y: 0 } }} onDragStart={(e: DragStartEvent) => setActive(optimistic.find((d) => d.id === e.active.id) ?? null)} onDragEnd={onDragEnd} onDragCancel={() => setActive(null)}>
           <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-3">
             {stages.map((s) => (
               <Column
@@ -270,7 +277,11 @@ export function FunisView({
               />
             ))}
           </div>
-          <DragOverlay>{active ? <DealCard deal={active} kind={stageById.get(active.stageId)?.kind ?? "open"} dragging /> : null}</DragOverlay>
+          {isClient &&
+            createPortal(
+              <DragOverlay dropAnimation={null}>{active ? <DealCard deal={active} kind={stageById.get(active.stageId)?.kind ?? "open"} dragging /> : null}</DragOverlay>,
+              document.body,
+            )}
         </DndContext>
       ) : (
         <Card className="p-2 md:p-3">
