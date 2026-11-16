@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -53,7 +53,8 @@ beforeAll(async () => {
     create function auth.email() returns text language sql stable as $$ select nullif(current_setting('request.jwt.claim.email', true), '') $$;
     grant execute on function auth.uid(), auth.email() to anon, authenticated;
   `);
-  await db.exec(readFileSync(path.join(__dirname, "../migrations/20261116000000_auth_orgs.sql"), "utf8"));
+  const dir = path.join(__dirname, "../migrations");
+  for (const f of readdirSync(dir).filter((n) => n.endsWith(".sql")).sort()) await db.exec(readFileSync(path.join(dir, f), "utf8"));
   for (const id of [A, B, C, D]) {
     await db.query("insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3)", [id, email(id), JSON.stringify({ full_name: "Usuário " + id.slice(-1) })]);
   }
@@ -66,6 +67,11 @@ beforeAll(async () => {
 });
 
 describe("perfis", () => {
+  it("guarda o e-mail no perfil e só mostra a quem divide organização", async () => {
+    expect((await rows("select email from profiles where id = $1", [A]))[0].email).toBe(email(A));
+    const seen = await as(B, async () => (await rows("select email from profiles")).map((r) => r.email));
+    expect(seen).toEqual([email(B)]);
+  });
   it("o gatilho cria o perfil ao cadastrar o usuário", async () => {
     const r = await rows("select full_name from profiles where id = $1", [A]);
     expect(r[0].full_name).toBe("Usuário a");

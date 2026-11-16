@@ -17,16 +17,19 @@ export function AuthForm({
   fields,
   submit,
   footer,
+  hidden,
 }: {
   action: (state: FormState | undefined, fd: FormData) => Promise<FormState>;
   fields: Field[];
   submit: string;
   footer?: ReactNode;
+  hidden?: Record<string, string>;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   return (
     <div className="flex flex-col gap-4">
     <form action={formAction} className="flex flex-col gap-4" noValidate>
+      {hidden && Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       {fields.map((f, i) => (
         <label key={f.name} className="flex flex-col gap-1.5 text-[13px] font-medium text-fg-2">
           {f.label}

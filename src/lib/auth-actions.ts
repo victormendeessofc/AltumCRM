@@ -1,5 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
+import { safeNext } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export interface FormState {
@@ -20,7 +21,7 @@ export async function signIn(_: FormState | undefined, fd: FormData): Promise<Fo
   if (error) {
     return { error: error.message.toLowerCase().includes("email not confirmed") ? "Confirme seu e-mail antes de entrar. Enviamos um link para a sua caixa de entrada." : "E-mail ou senha incorretos." };
   }
-  redirect("/painel");
+  redirect(safeNext(fd.get("next")) ?? "/painel");
 }
 
 export async function signUp(_: FormState | undefined, fd: FormData): Promise<FormState> {
@@ -38,7 +39,7 @@ export async function signUp(_: FormState | undefined, fd: FormData): Promise<Fo
   }
   if (error) return { error: error.message.toLowerCase().includes("already") ? "Este e-mail já tem cadastro. Tente entrar." : "Não foi possível criar a conta agora. Tente de novo." };
   if (!data.session) return { info: "Conta criada. Confirme seu e-mail pelo link que enviamos e depois entre." };
-  redirect("/onboarding");
+  redirect(safeNext(fd.get("next")) ?? "/onboarding");
 }
 
 export async function signOut() {
