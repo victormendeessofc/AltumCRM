@@ -1,10 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { ensureCompany } from "@/lib/companies";
 import { parseContactsCsv, validateContact, type ContactInput } from "@/lib/contacts";
 import { requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
-
-type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 export interface SaveState {
   error?: string;
@@ -17,26 +16,12 @@ export interface ImportResult {
   failed?: number;
 }
 
-const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => "\\" + c);
 
 function friendly(message: string): string {
   if (message.includes("contacts_email_uniq")) return "Já existe um contato com esse e-mail.";
   if (message.includes("row-level security")) return "Você não tem permissão para isso.";
   if (message.includes("violates check constraint")) return "Algum campo está fora do limite permitido.";
   return "Não foi possível salvar. Tente de novo.";
-}
-
-/** Acha (sem diferenciar maiúsculas) ou cria a empresa pelo nome. */
-async function ensureCompany(supabase: Supabase, orgId: string, userId: string, name: string): Promise<string | null> {
-  const find = async () => {
-    const { data } = await supabase.from("companies").select("id").eq("org_id", orgId).ilike("name", escapeLike(name)).limit(1);
-    return data?.[0]?.id ?? null;
-  };
-  const existing = await find();
-  if (existing) return existing;
-  const { data, error } = await supabase.from("companies").insert({ org_id: orgId, name, created_by: userId }).select("id").single();
-  if (error) return await find(); // corrida: outra requisição criou antes
-  return data.id;
 }
 
 function row(v: ContactInput, orgId: string, userId: string, companyId: string | null, ownerId: string | null) {
