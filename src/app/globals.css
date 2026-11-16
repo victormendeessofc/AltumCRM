@@ -267,14 +267,16 @@ body {
   display: block;
 }
 
-a {
-  color: var(--text-accent);
-  text-decoration: none;
-}
-@media (hover: hover) and (pointer: fine) {
-  a:hover {
-    color: var(--accent-hover);
-    text-decoration: underline;
-    text-underline-offset: 3px;
+@layer base {
+  a {
+    color: var(--text-accent);
+    text-decoration: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    a:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
   }
 }
