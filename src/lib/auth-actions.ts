@@ -32,6 +32,10 @@ export async function signUp(_: FormState | undefined, fd: FormData): Promise<Fo
   if (password.length < 8) return { error: "A senha precisa ter pelo menos 8 caracteres." };
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+  if (error) {
+    const m = error.message.toLowerCase();
+    if (m.includes("rate limit")) return { error: "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo." };
+  }
   if (error) return { error: error.message.toLowerCase().includes("already") ? "Este e-mail já tem cadastro. Tente entrar." : "Não foi possível criar a conta agora. Tente de novo." };
   if (!data.session) return { info: "Conta criada. Confirme seu e-mail pelo link que enviamos e depois entre." };
   redirect("/onboarding");
