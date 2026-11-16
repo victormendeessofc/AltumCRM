@@ -1,8 +1,9 @@
 "use client";
-import { Moon, Search, Sun } from "lucide-react";
+import { LogOut, Moon, Search, Sun } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
+import { signOut } from "@/lib/auth-actions";
 
 type Theme = "escuro" | "claro";
 const listeners = new Set<() => void>();
@@ -23,7 +24,7 @@ function applyTheme(t: Theme) {
   listeners.forEach((l) => l());
 }
 
-export function Topbar() {
+export function Topbar({ userName, orgName }: { userName: string; orgName: string }) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => "escuro" as Theme);
   const next: Theme = theme === "escuro" ? "claro" : "escuro";
 
@@ -44,7 +45,14 @@ export function Topbar() {
         size="lg"
         onClick={() => applyTheme(next)}
       />
-      <Avatar name="Marina Duarte" size={40} shape="square" status="online" />
+      <div className="hidden min-w-0 flex-col text-right leading-tight lg:flex">
+        <span className="truncate text-sm font-medium">{userName}</span>
+        <span className="truncate text-[11px] text-fg-3">{orgName}</span>
+      </div>
+      <Avatar name={userName} size={40} shape="square" status="online" />
+      <form action={signOut}>
+        <IconButton icon={LogOut} label="Sair" size="lg" type="submit" />
+      </form>
     </header>
   );
 }
