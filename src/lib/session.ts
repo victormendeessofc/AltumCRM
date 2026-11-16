@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,6 +12,7 @@ export interface Session {
 
 /** Usuário logado + organização ativa (a primeira do usuário por ora). Sem login vai para /entrar; sem organização, para /onboarding. */
 export const requireSession = cache(async (): Promise<Session> => {
+  await connection(); // dados por usuário: sempre em tempo de requisição, nunca no pré-render
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/entrar");
@@ -18,6 +20,7 @@ export const requireSession = cache(async (): Promise<Session> => {
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name, plan)")
+    .eq("user_id", auth.user.id)
     .order("created_at", { ascending: true })
     .limit(1);
   const m = memberships?.[0];

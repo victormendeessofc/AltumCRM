@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { AcceptInvite } from "@/components/admin/accept-invite";
 import { signOut } from "@/lib/auth-actions";
@@ -11,6 +12,7 @@ export const metadata: Metadata = { title: "Convite" };
 const UUID = /^[0-9a-f-]{36}$/i;
 
 async function Body({ params }: { params: Promise<{ token: string }> }) {
+  await connection();
   const { token } = await params;
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();

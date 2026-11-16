@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
 import { createOrganization, signOut } from "@/lib/auth-actions";
@@ -8,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Sua organização" };
 
 async function OnboardingForm() {
+  await connection();
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/entrar");
