@@ -203,9 +203,11 @@ body {
 ::selection {
   background: rgb(197 216 139 / 0.35);
 }
-:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+@layer base {
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
 }
 .num {
   font-variant-numeric: tabular-nums;

@@ -26,6 +26,7 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
+  const [hitsFor, setHitsFor] = useState("");
   const [idx, setIdx] = useState(0);
   const seq = useRef(0);
 
@@ -50,7 +51,10 @@ export function CommandPalette() {
     const my = ++seq.current;
     const t = setTimeout(async () => {
       const r = await searchAll(q);
-      if (my === seq.current) setHits(r);
+      if (my === seq.current) {
+        setHits(r);
+        setHitsFor(q.trim());
+      }
     }, 220);
     return () => clearTimeout(t);
   }, [q, open]);
@@ -102,6 +106,7 @@ export function CommandPalette() {
       : []),
   ];
   const current = Math.min(idx, Math.max(0, items.length - 1));
+  const searching = term.length >= 2 && hitsFor !== q.trim();
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
@@ -124,6 +129,7 @@ export function CommandPalette() {
         if (!o) {
           setQ("");
           setHits([]);
+          setHitsFor("");
           setIdx(0);
         }
       }}
@@ -152,7 +158,8 @@ export function CommandPalette() {
             />
           </div>
           <ul role="listbox" aria-label="Resultados" className="overflow-y-auto p-2">
-            {items.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-fg-3">Nada encontrado para “{q}”.</li>}
+            {items.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-fg-3">{searching ? "Buscando…" : `Nada encontrado para “${q}”.`}</li>}
+            {items.length > 0 && searching && <li className="px-4 py-2 text-[12px] text-fg-3">Buscando mais resultados…</li>}
             {items.map((c, i) => (
               <li key={c.id} role="presentation">
                 {(i === 0 || items[i - 1].group !== c.group) && <p className="px-3 pb-1 pt-3 text-[11px] font-medium uppercase tracking-[0.04em] text-fg-3">{c.group}</p>}
