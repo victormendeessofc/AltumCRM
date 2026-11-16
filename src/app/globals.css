@@ -1,0 +1,268 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Altum CRM — design tokens
+   Portados do protótipo. Escuro é o padrão; claro via [data-theme="light"].
+   ============================================================ */
+:root {
+  /* Marca */
+  --celery: #c5d88b;
+  --mint: #44ef9a;
+  --honeyberry: #6893cf;
+
+  --celery-200: #dae6b1;
+  --celery-400: #b2c86c;
+  --celery-500: #97ad4f;
+  --celery-700: #58672d;
+  --mint-500: #22c97a;
+  --honeyberry-500: #4c76b3;
+  --coral-400: #f2766b;
+  --coral-500: #d9564b;
+  --amber-400: #f2c14e;
+  --amber-500: #d6a22b;
+
+  /* Neutros (preto com leve tom esverdeado) */
+  --neutral-50: #f4f5f3;
+  --neutral-300: #9a9d99;
+  --neutral-400: #747874;
+  --neutral-500: #545855;
+  --neutral-750: #1f2121;
+  --neutral-800: #181a19;
+  --neutral-850: #131514;
+  --neutral-900: #0b0d0c;
+  --neutral-950: #070908;
+
+  /* Semânticos (escuro) */
+  --bg-app: var(--neutral-900);
+  --bg-sunken: var(--neutral-950);
+  --surface-card: var(--neutral-800);
+  --surface-raised: var(--neutral-750);
+  --surface-sunken: var(--neutral-850);
+  --surface-overlay: #1b1d1c;
+  --surface-hover: rgb(255 255 255 / 0.04);
+  --surface-pressed: rgb(255 255 255 / 0.07);
+  --surface-selected: rgb(255 255 255 / 0.08);
+
+  --border-subtle: rgb(255 255 255 / 0.05);
+  --border-default: rgb(255 255 255 / 0.08);
+  --border-strong: rgb(255 255 255 / 0.14);
+
+  --text-primary: #ffffff;
+  --text-secondary: var(--neutral-300);
+  --text-tertiary: #8b8f8b;
+  --text-disabled: var(--neutral-500);
+  --text-inverse: var(--neutral-900);
+  --text-accent: var(--celery);
+
+  --accent: var(--celery);
+  --accent-hover: var(--celery-200);
+  --accent-pressed: var(--celery-400);
+  --accent-soft: rgb(197 216 139 / 0.14);
+  --accent-fg: var(--neutral-900);
+
+  --success: var(--mint);
+  --success-soft: rgb(68 239 154 / 0.12);
+  --warning: var(--amber-400);
+  --warning-soft: rgb(242 193 78 / 0.12);
+  --danger: var(--coral-400);
+  --danger-soft: rgb(242 118 107 / 0.12);
+  --info: var(--honeyberry);
+  --info-soft: rgb(104 147 207 / 0.14);
+
+  --chart-grid: rgb(255 255 255 / 0.06);
+  --focus-ring: 0 0 0 3px rgb(197 216 139 / 0.35);
+  --scrim: rgb(4 5 5 / 0.72);
+  --ink: 255 255 255;
+
+  /* Elevação */
+  --shadow-sm: 0 2px 8px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 10px 28px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 24px 64px rgb(0 0 0 / 0.55);
+  --inset-highlight: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --shadow-tile: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 4px 14px rgb(0 0 0 / 0.35);
+  --shadow-card: var(--inset-highlight);
+  --shadow-popover: var(--inset-highlight), var(--shadow-md);
+  --glow-celery: radial-gradient(60% 60% at 50% 0%, rgb(197 216 139 / 0.18) 0%, rgb(197 216 139 / 0) 70%);
+
+  /* Raios */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+
+  /* Movimento (curvas fortes: as nativas do CSS são fracas demais) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
+}
+
+[data-theme="light"] {
+  --bg-app: #f2f3ef;
+  --bg-sunken: #e9ebe6;
+  --surface-card: #ffffff;
+  --surface-raised: #f6f7f4;
+  --surface-sunken: #eef0eb;
+  --surface-overlay: #ffffff;
+  --surface-hover: rgb(11 13 12 / 0.04);
+  --surface-pressed: rgb(11 13 12 / 0.07);
+  --surface-selected: rgb(11 13 12 / 0.06);
+  --border-subtle: rgb(11 13 12 / 0.05);
+  --border-default: rgb(11 13 12 / 0.09);
+  --border-strong: rgb(11 13 12 / 0.16);
+  --text-primary: #0b0d0c;
+  --text-secondary: #555955;
+  --text-tertiary: #6b6f6b;
+  --text-disabled: #a9aca8;
+  --text-inverse: #ffffff;
+  --text-accent: var(--celery-700);
+  --accent-hover: var(--celery-400);
+  --accent-pressed: var(--celery-500);
+  --accent-soft: rgb(151 173 79 / 0.16);
+  --success: var(--mint-500);
+  --success-soft: rgb(34 201 122 / 0.12);
+  --warning: var(--amber-500);
+  --warning-soft: rgb(214 162 43 / 0.14);
+  --danger: var(--coral-500);
+  --danger-soft: rgb(217 86 75 / 0.12);
+  --info: var(--honeyberry-500);
+  --info-soft: rgb(76 118 179 / 0.12);
+  --chart-grid: rgb(11 13 12 / 0.07);
+  --focus-ring: 0 0 0 3px rgb(151 173 79 / 0.35);
+  --scrim: rgb(11 13 12 / 0.4);
+  --ink: 11 13 12;
+  --shadow-sm: 0 2px 8px rgb(11 13 12 / 0.06);
+  --shadow-md: 0 10px 28px rgb(11 13 12 / 0.1);
+  --shadow-lg: 0 24px 64px rgb(11 13 12 / 0.16);
+  --inset-highlight: inset 0 0 0 1px rgb(11 13 12 / 0);
+  --shadow-tile: 0 1px 2px rgb(11 13 12 / 0.06), 0 0 0 1px rgb(11 13 12 / 0.06);
+  --shadow-card: 0 1px 2px rgb(11 13 12 / 0.04);
+}
+
+/* Tailwind: expõe os tokens como utilitários (bg-card, text-fg-2, border-line...) */
+@theme inline {
+  --font-sans: var(--font-urbanist), ui-sans-serif, system-ui, sans-serif;
+
+  --color-app: var(--bg-app);
+  --color-sunken: var(--bg-sunken);
+  --color-card: var(--surface-card);
+  --color-raised: var(--surface-raised);
+  --color-overlay: var(--surface-overlay);
+  --color-hover: var(--surface-hover);
+  --color-pressed: var(--surface-pressed);
+  --color-selected: var(--surface-selected);
+  --color-line-subtle: var(--border-subtle);
+  --color-line: var(--border-default);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text-primary);
+  --color-fg-2: var(--text-secondary);
+  --color-fg-3: var(--text-tertiary);
+  --color-fg-off: var(--text-disabled);
+  --color-fg-inverse: var(--text-inverse);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--text-accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+}
+
+/* Base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-urbanist), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+::selection {
+  background: rgb(197 216 139 / 0.35);
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbars discretas */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--ink) / 0.14) transparent;
+}
+
+/* Entrada de elementos: opacidade + leve deslocamento, nunca scale(0) */
+@keyframes altum-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes altum-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(68 239 154 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgb(68 239 154 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(68 239 154 / 0);
+  }
+}
+.animate-in-up {
+  animation: altum-in var(--dur-slow) var(--ease-out) both;
+}
+
+/* Reduz movimento, mas mantém transições de opacidade/cor */
+@media (prefers-reduced-motion: reduce) {
+  .animate-in-up {
+    animation: none;
+  }
+  * {
+    transition-property: color, background-color, border-color, opacity !important;
+  }
+}
+
+/* Logos por tema: o arquivo claro é para fundo escuro e vice-versa */
+.logo-light-only,
+.mark-light-only {
+  display: none;
+}
+[data-theme="light"] .logo-dark-only,
+[data-theme="light"] .mark-dark-only {
+  display: none;
+}
+[data-theme="light"] .logo-light-only,
+[data-theme="light"] .mark-light-only {
+  display: block;
+}
