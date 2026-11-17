@@ -1,6 +1,16 @@
 "use server";
-import { requireSession } from "@/lib/session";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { ORG_COOKIE, requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
+
+/** Troca a organização ativa. Só aceita organizações de que a pessoa é membro (o banco confirma). */
+export async function switchOrg(orgId: string): Promise<void> {
+  const session = await requireSession();
+  if (!session.orgs.some((o) => o.id === orgId)) return;
+  (await cookies()).set(ORG_COOKIE, orgId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365 });
+  redirect("/painel");
+}
 
 export interface NotificationItem {
   id: string;

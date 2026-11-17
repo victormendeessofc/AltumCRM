@@ -34,7 +34,9 @@ export async function signUp(_: FormState | undefined, fd: FormData): Promise<Fo
   if (!validEmail(email)) return { error: "Informe um e-mail válido." };
   if (password.length < 8) return { error: "A senha precisa ter pelo menos 8 caracteres." };
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: `${await getOrigin()}/auth/callback?next=/painel` } });
+  // Quem vem de um convite precisa voltar ao convite depois de confirmar o e-mail (senão cai numa conta zerada).
+  const invite = safeNext(fd.get("next"));
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: `${await getOrigin()}/auth/callback?next=${encodeURIComponent(invite ?? "/painel")}` } });
   if (error) {
     const m = error.message.toLowerCase();
     if (m.includes("rate limit")) return { error: "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo." };

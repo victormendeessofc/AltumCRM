@@ -7,6 +7,8 @@ const TABLES: Record<string, string> = {
   pipelines: "Funil",
   stages: "Etapa",
   organizations: "Organização",
+  whatsapp_channels: "Canal de WhatsApp",
+  tickets: "Chamado de suporte",
 };
 const OPS: Record<string, string> = { INSERT: "criado", UPDATE: "alterado", DELETE: "excluído" };
 const FIELDS: Record<string, string> = {
@@ -32,6 +34,12 @@ const FIELDS: Record<string, string> = {
   position: "ordem",
   probability: "probabilidade",
   monthly_goal: "meta mensal",
+  status: "status",
+  priority: "prioridade",
+  body: "texto",
+  provider: "tipo de conexão",
+  external_id: "identificador externo",
+  status_detail: "detalhe do status",
 };
 
 export function describeAudit(e: { table_name: string; op: string; changed: string[] | null }): string {

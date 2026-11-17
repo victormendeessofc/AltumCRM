@@ -4,7 +4,7 @@ import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/env";
 
 const PUBLIC = ["/entrar", "/cadastro", "/esqueci-senha"];
 // Acessível logado ou não (a página decide o que mostrar).
-const OPEN = ["/convite", "/termos", "/privacidade", "/auth/callback"];
+const OPEN = ["/convite", "/termos", "/privacidade", "/auth/callback", "/api/whatsapp"];
 
 /** Renova a sessão do Supabase e faz o redirecionamento otimista. A autorização real é feita no servidor (RLS + layout). */
 export async function proxy(request: NextRequest) {

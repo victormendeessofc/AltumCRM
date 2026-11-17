@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0 — 17/11/2026
+
+**Organizações**
+- Seletor de organização: quem participa de mais de uma troca entre elas (cada uma com o seu papel). Ao aceitar um convite, a organização do convite vira a ativa
+- Correção: o link de confirmação de e-mail agora volta ao convite (antes caía numa conta zerada)
+
+**Atendimento** (guia em `docs/ATENDIMENTO.md`)
+- WhatsApp: conexão pela API oficial (Meta) ou por QR Code (servidor Evolution API próprio)
+- Conversas: caixa de entrada compartilhada, responsável, status, criar contato, nova conversa
+- Suporte interno: chamados do time com comentários, prioridade e responsável
+- Segredos dos canais protegidos no banco; webhooks protegidos por segredo, assinatura e chave interna
+
+**Análises**
+- Receita por mês, conversão, ticket médio, ciclo de venda, funil, desempenho por responsável, motivos de perda, origem dos negócios, tempo de resposta
+
+**Banco:** migrações 5 (atendimento) e 6 (análises). Arquivo para aplicar em produção: `supabase/aplicar-migracoes-5-e-6.sql`
+
 ## 1.0.0 — 16/11/2026
 
 Primeira versão completa do núcleo do CRM.

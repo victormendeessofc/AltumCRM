@@ -1,9 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isOrgRole } from "@/lib/roles";
-import { requireSession } from "@/lib/session";
+import { ORG_COOKIE, requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
 export interface InviteState {
@@ -82,7 +82,11 @@ export async function removeMember(userId: string): Promise<ActionResult> {
 
 export async function acceptInvite(token: string): Promise<ActionResult> {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("accept_invitation", { p_token: token });
+  const { data: orgId, error } = await supabase.rpc("accept_invitation", { p_token: token });
   if (error) return { error: "Este convite é inválido, expirou ou foi enviado para outro e-mail." };
+  // A organização do convite vira a ativa: quem já tinha outra conta passa a ver a que o convidou.
+  if (typeof orgId === "string") {
+    (await cookies()).set(ORG_COOKIE, orgId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365 });
+  }
   redirect("/painel");
 }

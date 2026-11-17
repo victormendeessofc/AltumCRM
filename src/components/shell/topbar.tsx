@@ -7,8 +7,9 @@ import { signOut } from "@/lib/auth-actions";
 import { applyTheme, useIsLight } from "@/lib/theme";
 import { CommandPalette, OPEN_PALETTE_EVENT } from "./command-palette";
 import { Notifications } from "./notifications";
+import { OrgSwitcher, type OrgOption } from "./org-switcher";
 
-export function Topbar({ userName, orgName }: { userName: string; orgName: string }) {
+export function Topbar({ userName, orgName, orgs, activeOrgId }: { userName: string; orgName: string; orgs: OrgOption[]; activeOrgId: string }) {
   const isLight = useIsLight();
 
   return (
@@ -23,6 +24,7 @@ export function Topbar({ userName, orgName }: { userName: string; orgName: strin
         <kbd className="hidden items-center rounded-[9px] border border-line bg-card px-2 py-1 text-[11px] font-medium text-fg-3 sm:inline-flex">Ctrl K</kbd>
       </button>
       <div className="flex-1" />
+      <OrgSwitcher orgs={orgs} activeId={activeOrgId} />
       <IconButton icon={isLight ? Moon : Sun} label={isLight ? "Usar tema escuro" : "Usar tema claro"} size="lg" onClick={() => applyTheme(isLight ? "escuro" : "claro")} />
       <Notifications />
       <Link href="/perfil" aria-label="Meu perfil" className="flex min-w-0 items-center gap-2.5 rounded-2xl no-underline">

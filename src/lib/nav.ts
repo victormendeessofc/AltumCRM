@@ -26,14 +26,14 @@ export interface NavGroup {
   items: NavEntry[];
 }
 
-/** Fase 1 entrega: painel, funis, contatos, tarefas, administração. O resto entra nas fases 2 e 3. */
+/** Em breve: Assistente IA e Performance (gamificação). O resto já está no ar. */
 export const NAV: NavGroup[] = [
   {
     group: "Visão geral",
     items: [
       { href: "/painel", icon: LayoutGrid, label: "Central" },
       { href: "/assistente", icon: Sparkles, label: "Assistente IA", soon: true },
-      { href: "/analises", icon: ChartColumn, label: "Análises", soon: true },
+      { href: "/analises", icon: ChartColumn, label: "Análises" },
     ],
   },
   {
@@ -47,9 +47,9 @@ export const NAV: NavGroup[] = [
   {
     group: "Atendimento",
     items: [
-      { href: "/conversas", icon: MessagesSquare, label: "Conversas", soon: true },
-      { href: "/whatsapp", icon: Smartphone, label: "WhatsApp", soon: true },
-      { href: "/suporte", icon: Inbox, label: "Suporte interno", soon: true },
+      { href: "/conversas", icon: MessagesSquare, label: "Conversas" },
+      { href: "/whatsapp", icon: Smartphone, label: "WhatsApp" },
+      { href: "/suporte", icon: Inbox, label: "Suporte interno" },
     ],
   },
   { group: "Evolução", items: [{ href: "/performance", icon: Target, label: "Performance", soon: true }] },

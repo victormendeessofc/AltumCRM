@@ -11,7 +11,7 @@ async function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-dvh gap-4 overflow-hidden bg-app p-2.5 md:p-4">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col gap-4">
-        <Topbar userName={session.fullName} orgName={session.org.name} />
+        <Topbar userName={session.fullName} orgName={session.org.name} orgs={session.orgs} activeOrgId={session.org.id} />
         <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-[var(--radius-xl)] pb-28 md:pb-8 [scrollbar-gutter:stable]">
           <div className="mx-auto max-w-[1600px] px-0.5 pt-1">{children}</div>
         </main>
