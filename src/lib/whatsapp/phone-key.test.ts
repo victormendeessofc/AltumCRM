@@ -17,3 +17,17 @@ describe("phoneKey", () => {
     expect(phoneKey(null)).toBeNull();
   });
 });
+
+describe("withNinthDigit (celular brasileiro sem o 9)", () => {
+  it("coloca o 9 de volta no celular", async () => {
+    const { withNinthDigit, formatPhone } = await import("./phone");
+    expect(withNinthDigit("553193992305")).toBe("5531993992305");
+    expect(formatPhone("553193992305")).toBe("+55 (31) 99399-2305");
+  });
+  it("não mexe em fixo, em número que já tem o 9 nem em outro país", async () => {
+    const { withNinthDigit } = await import("./phone");
+    expect(withNinthDigit("551132345678")).toBe("551132345678");
+    expect(withNinthDigit("5531993992305")).toBe("5531993992305");
+    expect(withNinthDigit("14155550100")).toBe("14155550100");
+  });
+});

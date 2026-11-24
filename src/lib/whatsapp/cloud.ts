@@ -1,9 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { normalizePhone } from "./phone";
+import { normalizePhone, withNinthDigit } from "./phone";
 import { safeFetch } from "./net";
 
 /** API oficial do WhatsApp (Cloud API da Meta). */
-export const GRAPH = "https://graph.facebook.com/v21.0";
+export const GRAPH = "https://graph.facebook.com/v27.0";
 
 export interface CloudSecrets {
   access_token?: string;
@@ -38,7 +38,7 @@ export async function sendText(phoneNumberId: string, token: string, to: string,
     const res = await safeFetch(`${GRAPH}/${encodeURIComponent(phoneNumberId)}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { preview_url: false, body } }),
+      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: withNinthDigit(to), type: "text", text: { preview_url: false, body } }),
     });
     const json = (await res.json().catch(() => ({}))) as { messages?: { id: string }[]; error?: { code?: number; message?: string } };
     if (res.ok && json.messages?.[0]?.id) return { ok: true, id: json.messages[0].id };

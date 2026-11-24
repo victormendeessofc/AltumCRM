@@ -11,9 +11,18 @@ export function normalizePhone(input: string): string | null {
   return /^\d{8,15}$/.test(d) ? d : null;
 }
 
-/** 5511912345678 → +55 (11) 91234-5678. Fora do padrão brasileiro, devolve com o "+" na frente. */
+/**
+ * Celular brasileiro sem o 9 (o WhatsApp às vezes manda assim: 553193992305) ganha o 9 de volta (5531993992305).
+ * Só mexe em 55 + DDD + 8 dígitos começando com 6 a 9 (celular); fixo (2 a 5) e outros países ficam iguais.
+ */
+export function withNinthDigit(digits: string): string {
+  const m = /^55(\d{2})([6-9]\d{7})$/.exec(digits);
+  return m ? `55${m[1]}9${m[2]}` : digits;
+}
+
+/** 5511912345678 → +55 (11) 91234-5678 (celular sem o 9 é mostrado com ele). Fora do padrão brasileiro, devolve com o "+" na frente. */
 export function formatPhone(digits: string): string {
-  const d = String(digits ?? "").replace(/\D/g, "");
+  const d = withNinthDigit(String(digits ?? "").replace(/\D/g, ""));
   const m = /^55(\d{2})(9?\d{4})(\d{4})$/.exec(d);
   return m ? `+55 (${m[1]}) ${m[2]}-${m[3]}` : d ? `+${d}` : "";
 }
