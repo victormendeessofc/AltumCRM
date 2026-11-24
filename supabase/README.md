@@ -8,6 +8,12 @@
 | `20261116000100_profiles_email.sql` | E-mail no perfil (lista de usuários) |
 | `20261116000200_contacts.sql` | Empresas e contatos |
 | `20261116000300_crm_core.sql` | Funis, etapas, negócios, tarefas, atividades, notificações, auditoria, meta mensal e indicadores da Central |
+| `20261117000000_atendimento.sql` | Canais de WhatsApp, conversas, mensagens, suporte interno (chamados) |
+| `20261117000100_analytics.sql` | Indicadores da tela Análises |
+| `20261124000000_realtime.sql` | Tempo real: conversas, mensagens e notificações avisam a tela assim que mudam |
+| `20261124000100_quick_replies.sql` | Respostas rápidas (atalhos / nas Conversas), com auditoria |
+| `20261124000200_contacts_tags_fields.sql` | Telefone único (junta duplicados automaticamente), etiquetas e campos personalizados nos contatos |
+| `20261124000300_whatsapp_meta_app.sql` | WhatsApp pelo app da Meta da Agência: webhook único e um número por organização |
 
 ## Projeto novo (ex.: produção)
 

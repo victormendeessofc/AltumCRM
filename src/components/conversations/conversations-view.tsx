@@ -1,8 +1,9 @@
 "use client";
-import { ArrowLeft, Check, CheckCheck, Clock, Plus, Search, Send, TriangleAlert, UserPlus } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, Clock, Plus, Search, Send, TriangleAlert, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { QuickReplyMenu } from "@/components/conversations/quick-reply-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -25,6 +26,8 @@ import {
   type ConversationItem,
   type MessageItem,
 } from "@/lib/conversation-actions";
+import { fillVariables, matchQuickReplies, slashQuery, type QuickReply } from "@/lib/quick-replies";
+import { useRealtime } from "@/lib/use-realtime";
 import { useSubmit } from "@/lib/use-submit";
 import { formatPhone } from "@/lib/whatsapp/phone";
 
@@ -73,7 +76,11 @@ export function ConversationsView({
   channels,
   members,
   meId,
+  orgId,
+  quickReplies,
 }: {
+  orgId: string;
+  quickReplies: QuickReply[];
   initial: ConversationItem[];
   initialFilter: ConvFilter;
   initialId: string | null;
@@ -92,6 +99,10 @@ export function ConversationsView({
   const [sending, startSend] = useTransition();
   const [creating, setCreating] = useState(false);
   const [busy, startBusy] = useTransition();
+  const [menuFromButton, setMenuFromButton] = useState(false);
+  const [menuDismissed, setMenuDismissed] = useState(false);
+  const [menuIndex, setMenuIndex] = useState(0);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const person = new Map(members.map((m) => [m.id, m.name]));
@@ -115,17 +126,34 @@ export function ConversationsView({
     }
   }, []);
 
-  // lista: recarrega ao mudar filtro/busca e a cada 8 s com a aba visível
+  // tempo real: a lista reage a qualquer conversa da organização; a conversa aberta, às próprias mensagens
+  const live = useRealtime(
+    [
+      { table: "conversations", filter: `org_id=eq.${orgId}` },
+      ...(selectedId ? [{ table: "messages" as const, filter: `conversation_id=eq.${selectedId}` }] : []),
+    ],
+    (events) => {
+      refreshList();
+      if (!selectedId) return;
+      const touchesOpen = events.some((e) => (e.table === "messages" ? e.row.conversation_id : e.row.id) === selectedId);
+      if (!touchesOpen) return;
+      refreshThread(selectedId);
+      const inbound = events.some((e) => e.table === "messages" && e.row.direction === "in");
+      if (inbound && document.visibilityState === "visible") markConversationRead(selectedId).catch(() => {});
+    },
+  );
+
+  // lista: recarrega ao mudar filtro/busca; consulta de reserva (8 s sem tempo real, 60 s com)
   useEffect(() => {
     const first = setTimeout(refreshList, q ? 250 : 0);
-    const t = setInterval(() => document.visibilityState === "visible" && refreshList(), 8000);
+    const t = setInterval(() => document.visibilityState === "visible" && refreshList(), live ? 60_000 : 8000);
     return () => {
       clearTimeout(first);
       clearInterval(t);
     };
-  }, [refreshList, q]);
+  }, [refreshList, q, live]);
 
-  // conversa aberta: carrega, marca como lida e atualiza a cada 4 s
+  // conversa aberta: carrega e marca como lida
   useEffect(() => {
     if (!selectedId) return;
     const id = selectedId;
@@ -134,18 +162,39 @@ export function ConversationsView({
       await refreshThread(id);
       await markConversationRead(id);
     }, 0);
-    const t = setInterval(() => document.visibilityState === "visible" && refreshThread(id), 4000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(t);
-    };
+    return () => clearTimeout(first);
   }, [selectedId, refreshThread]);
+
+  // conversa aberta: consulta de reserva (4 s sem tempo real, 30 s com)
+  useEffect(() => {
+    if (!selectedId) return;
+    const id = selectedId;
+    const t = setInterval(() => document.visibilityState === "visible" && refreshThread(id), live ? 30_000 : 4000);
+    return () => clearInterval(t);
+  }, [selectedId, refreshThread, live]);
 
   useEffect(() => {
     if (stick.current) bottom.current?.scrollIntoView({ block: "end" });
   }, [messages]);
 
   const current = selectedId && conv?.id === selectedId ? conv : null;
+
+  // respostas rápidas: "/atalho" no começo da mensagem, ou o botão de raio (que mostra todas)
+  const slash = slashQuery(draft);
+  const menuOpen = !menuDismissed && (slash !== null || menuFromButton);
+  const matches = menuOpen ? matchQuickReplies(quickReplies, slash ?? "", 50) : [];
+  const pickQuickReply = (r: QuickReply) => {
+    const text = fillVariables(r.body, current?.name);
+    setDraft((d) => (slashQuery(d) !== null || !d.trim() ? text : `${d.replace(/\s+$/, "")}\n${text}`));
+    setMenuFromButton(false);
+    setMenuIndex(0);
+    requestAnimationFrame(() => {
+      const el = composer.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  };
 
   const send = () => {
     const text = draft.trim();
@@ -333,11 +382,50 @@ export function ConversationsView({
                   ) : (
                     <div className="flex flex-col gap-2">
                       {sendError && <FormError message={sendError} />}
-                      <div className="flex items-end gap-2">
+                      <div className="relative flex items-end gap-2">
+                        {menuOpen && <QuickReplyMenu items={matches} active={Math.min(menuIndex, Math.max(matches.length - 1, 0))} empty={quickReplies.length === 0 ? "none" : matches.length === 0 ? "nomatch" : null} onPick={pickQuickReply} onHover={setMenuIndex} />}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuFromButton((v) => !v);
+                            setMenuIndex(0);
+                            composer.current?.focus();
+                          }}
+                          aria-label="Respostas rápidas"
+                          aria-expanded={menuOpen}
+                          title="Respostas rápidas (ou digite /)"
+                          className={cn("inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-raised text-fg-2 transition-[border-color,color] duration-[160ms] ease-out hover:border-line-strong hover:text-fg", menuOpen && "border-accent text-fg")}
+                        >
+                          <Zap size={18} aria-hidden />
+                        </button>
                         <textarea
+                          ref={composer}
                           value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
+                          onChange={(e) => {
+                            setDraft(e.target.value);
+                            setMenuIndex(0);
+                            setMenuDismissed(false);
+                          }}
                           onKeyDown={(e) => {
+                            if (menuOpen && !e.nativeEvent.isComposing) {
+                              if (e.key === "Escape") {
+                                e.preventDefault();
+                                setMenuFromButton(false);
+                                setMenuDismissed(true);
+                                return;
+                              }
+                              if (matches.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                                e.preventDefault();
+                                const n = matches.length;
+                                setMenuIndex((i) => (Math.min(i, n - 1) + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+                                return;
+                              }
+                              if (matches.length > 0 && (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey))) {
+                                e.preventDefault();
+                                pickQuickReply(matches[Math.min(menuIndex, matches.length - 1)]);
+                                return;
+                              }
+                            }
                             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                               e.preventDefault();
                               send();
@@ -345,7 +433,7 @@ export function ConversationsView({
                           }}
                           rows={1}
                           maxLength={4096}
-                          placeholder="Escreva uma mensagem (Enter envia, Shift+Enter quebra a linha)"
+                          placeholder="Escreva uma mensagem ou / para respostas rápidas"
                           aria-label="Mensagem"
                           className={cn(textareaCls, "max-h-40 min-h-11 flex-1 resize-none rounded-[22px] py-2.5")}
                         />

@@ -15,7 +15,8 @@ Este guia ativa o módulo de Atendimento em produção. Tempo estimado: 20 minut
 
 - Os **segredos de cada canal** (token da Meta, chave do servidor de QR Code) ficam numa tabela do banco **sem nenhum acesso direto**. Nem o administrador consegue ler de volta o que salvou: só vê quais campos estão preenchidos.
 - Os **webhooks** (a Meta ou o servidor de QR Code avisando que chegou mensagem) não têm usuário logado. Eles gravam no banco com uma **chave interna** (`ALTUM_INTERNAL_KEY`) que só o servidor conhece. Sem ela, o banco recusa.
-- O endereço do webhook leva um **segredo por canal** (`?s=…`), e na API oficial a **assinatura da Meta** (`X-Hub-Signature-256`) também é conferida quando o App Secret está configurado.
+- API oficial: um **webhook único** (`/api/whatsapp/webhook`) para o app da Meta da Agência. Toda chamada precisa da **assinatura da Meta** (`X-Hub-Signature-256`, conferida com `META_APP_SECRET`); sem o segredo configurado, tudo é recusado. Cada número só pode estar em uma organização, e o canal é encontrado pelo ID do número que a Meta manda.
+- QR Code (e canais antigos da API oficial): o endereço do webhook leva um **segredo por canal** (`?s=…`).
 - A service_role do Supabase **não é usada** em nenhum ponto.
 
 ## Passo 1: ativar no servidor (uma vez)
@@ -26,26 +27,46 @@ Este guia ativa o módulo de Atendimento em produção. Tempo estimado: 20 minut
    ```
 2. **Banco de produção** (Supabase → SQL Editor), nesta ordem:
    1. Cole e rode `supabase/aplicar-migracoes-5-e-6.sql` (só se o banco já tem as migrações 1 a 4).
-   2. Rode: `select public.set_internal_key('COLE_A_CHAVE_AQUI');`
+   2. Cole e rode `supabase/aplicar-migracoes-7-a-10.sql` (tempo real, respostas rápidas, contatos com telefone único/etiquetas/campos e WhatsApp pelo app da Agência). **Atenção:** ela junta automaticamente contatos duplicados pelo telefone no mais antigo (nada é perdido; o que não couber vai para as observações).
+   3. Rode: `select public.set_internal_key('COLE_A_CHAVE_AQUI');`
 3. **Vercel** → Settings → Environment Variables: crie `ALTUM_INTERNAL_KEY` com a **mesma chave**, em Production (e Preview, se quiser testar). Opcionalmente `EVOLUTION_API_URL` e `EVOLUTION_API_KEY`.
 4. Faça um **novo deploy** (Deployments → Redeploy, ou um `git push`).
 5. Apague a chave de qualquer arquivo temporário. Ela fica só na Vercel e (como hash) no banco.
 
 > Importante: aplique as migrações **antes** do deploy do código novo. As telas de Conversas, Suporte e Análises dependem delas.
 
-## Passo 2A: conectar pela API oficial (Meta)
+## Passo 2A: API oficial (Meta), no modelo do wacrm
 
-Recomendada para operar com clientes. Estável e permitida pelo WhatsApp.
+Recomendada para operar com clientes. Estável e permitida pelo WhatsApp. Funciona com **um app da Meta da Agência** para todos os clientes: a Agência configura o app e o webhook **uma vez**, e cada cliente só informa os dados do número dele.
 
-Você precisa de: conta no **Meta Business**, um **app** em developers.facebook.com com o produto **WhatsApp**, e um número que não esteja em uso no WhatsApp comum.
+### Uma vez, pela Agência
 
-1. No Altum: **WhatsApp → Conectar número → API oficial**.
-   - **ID do número de telefone:** painel da Meta → WhatsApp → Configuração da API.
-   - **Token de acesso permanente:** crie um usuário do sistema em Business Settings e gere um token com as permissões `whatsapp_business_messaging` e `whatsapp_business_management`. O token temporário de 24 h não serve em produção.
-   - **App Secret** (recomendado): painel da Meta → Configurações do app → Básico.
-2. No canal criado, clique em **Webhook**. Copie a **URL de callback** e o **Token de verificação**.
-3. Na Meta: WhatsApp → Configuração → Webhook → Editar, cole os dois, salve e **assine o campo `messages`**.
-4. No Altum, clique em **Verificar**: o status deve ficar **Conectado**.
+1. Em developers.facebook.com, crie um app do tipo **Empresa** no portfólio da Agência e adicione o produto **WhatsApp**.
+2. Em Configurações do app → Básico: copie a **Chave secreta do app** e o **ID do app**. Preencha o link da política de privacidade (`https://<domínio>/privacidade`) e coloque o app em modo **Ao vivo** (Live). Em modo de desenvolvimento a Meta só entrega mensagens de números de teste.
+3. Gere um texto aleatório para o token de verificação (o mesmo comando do Passo 1 serve).
+4. **Vercel** → Environment Variables: `META_APP_SECRET` (a chave secreta), `META_VERIFY_TOKEN` (o texto do item 3) e `META_APP_ID` (opcional, recomendado). Faça um novo deploy.
+5. No app da Meta: WhatsApp → Configuração → Webhook → Editar:
+   - URL de callback: `https://<domínio>/api/whatsapp/webhook`
+   - Token de verificação: o mesmo `META_VERIFY_TOKEN`
+   - Salve e **assine o campo `messages`**.
+6. Em Configurações do negócio → Usuários do sistema, crie um usuário do sistema (Administrador) da Agência.
+
+### Para cada número de cliente
+
+Pré-requisitos na Meta: a conta WhatsApp Business (WABA) do cliente compartilhada com o portfólio da Agência (ou criada nele), um número que **não esteja em uso no WhatsApp do celular**, nome de exibição aprovado, **PIN de verificação em duas etapas** definido (WhatsApp Manager → Números de telefone) e **forma de pagamento** cadastrada no WhatsApp Manager (para modelos e conversas iniciadas pela empresa).
+
+1. Em Usuários do sistema, **adicione o ativo** (a conta do WhatsApp do cliente) ao usuário do sistema e gere um **token permanente** para o app da Agência, com `whatsapp_business_management` e `whatsapp_business_messaging`. O token temporário de 24 h não serve.
+2. No Altum do cliente: **WhatsApp → Conectar número → API oficial** e preencha: **ID do número**, **ID da conta do WhatsApp Business**, **token** e **PIN**. Os dois IDs estão em WhatsApp → Configuração da API.
+3. Ao clicar em **Conectar**, o Altum faz sozinho, nesta ordem:
+   1. confere se o token lê o número (`verify_number`);
+   2. confere se o número pertence àquela conta (`waba_phone_numbers`), um erro comum que faz as mensagens nunca chegarem;
+   3. registra o número na API com o PIN (`register`);
+   4. inscreve a conta no app da Agência (`subscribe_waba`), que é o que faz as mensagens chegarem.
+
+   Se algo falhar, a tela diz o que corrigir e mostra a etapa, o código da Meta e o Trace ID para levar ao suporte da Meta. Falhas nas etapas 1 e 2 não salvam nada. Falhas nas etapas 3 e 4 salvam o canal com status "Com problema": corrija e use **Reconectar**.
+4. **Verificar** confere o número e se a conta está inscrita no app da Agência (detecta o caso "conectado, mas as mensagens não chegam"). **Reconectar** refaz o registro (com PIN) e a inscrição.
+
+> Canais da API oficial criados antes desta versão usam o webhook próprio (`/api/whatsapp/<canal>?s=…`) e continuam funcionando. Para passar ao app da Agência, edite o canal, informe o ID da conta do WhatsApp Business, salve e clique em Reconectar.
 
 **Regra das 24 horas:** a API oficial só permite resposta livre até 24 horas depois da última mensagem do cliente. Passado esse prazo, só com **modelo de mensagem aprovado**. O Altum bloqueia o envio fora da janela e explica o motivo. O envio de modelos ainda não está implementado.
 
@@ -65,8 +86,15 @@ O endereço do servidor precisa ser **https** e público: o Altum recusa `localh
 
 - Envio de **mídias** (imagem, áudio, documento). Mensagens recebidas com mídia aparecem como `[imagem]`, `[áudio]` etc.
 - **Modelos de mensagem** (templates) da API oficial.
-- Atualização **em tempo real**: a tela consulta a cada 4 s (conversa aberta) e 8 s (lista).
 - Respostas automáticas e chatbot.
+
+## Respostas rápidas
+
+Textos prontos da empresa. Administrador e gerente cadastram em **Administração → Respostas rápidas**; toda a equipe usa. Na conversa, digite `/` e o atalho (ex.: `/preco`) ou clique no botão de raio ao lado da caixa de mensagem. Setas escolhem, Enter ou Tab insere, Esc fecha. O texto entra na caixa para revisar antes de enviar. `{{primeiro_nome}}` e `{{nome}}` viram o nome do cliente; se só houver o número, somem da frase. Precisa da migração `20261124000100_quick_replies.sql`.
+
+## Tempo real
+
+Conversas, mensagens e o sino de notificações atualizam na hora (Supabase Realtime), sem recarregar a página. Para ligar, rode `supabase/migrations/20261124000000_realtime.sql` no SQL Editor (pode rodar mais de uma vez sem problema). Sem essa migração tudo continua funcionando, só que pela consulta periódica antiga (a cada 4 s na conversa aberta e 8 s na lista). Com o tempo real ativo, essa consulta continua como reserva, mas bem mais espaçada (30 s e 60 s).
 
 ## Se algo não funcionar
 

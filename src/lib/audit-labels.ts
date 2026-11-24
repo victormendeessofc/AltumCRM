@@ -9,6 +9,7 @@ const TABLES: Record<string, string> = {
   organizations: "Organização",
   whatsapp_channels: "Canal de WhatsApp",
   tickets: "Chamado de suporte",
+  quick_replies: "Resposta rápida",
 };
 const OPS: Record<string, string> = { INSERT: "criado", UPDATE: "alterado", DELETE: "excluído" };
 const FIELDS: Record<string, string> = {
@@ -37,6 +38,7 @@ const FIELDS: Record<string, string> = {
   status: "status",
   priority: "prioridade",
   body: "texto",
+  shortcut: "atalho",
   provider: "tipo de conexão",
   external_id: "identificador externo",
   status_detail: "detalhe do status",

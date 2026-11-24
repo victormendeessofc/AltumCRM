@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
-import { formatPhone, normalizePhone } from "@/lib/whatsapp/phone";
+import { formatPhone, normalizePhone, phoneKey } from "@/lib/whatsapp/phone";
 import { NOT_CONFIGURED, deliver, internalKey, internalRpc } from "@/lib/whatsapp/server";
 
 export type ConvStatus = "open" | "pending" | "closed";
@@ -200,11 +200,15 @@ export async function createContactFromConversation(conversationId: string): Pro
   if (!conv) return { error: "Conversa não encontrada." };
   if (conv.contact_id) return { error: "Esta conversa já tem um contato." };
   const phone = formatPhone(conv.phone);
-  const { data: contact, error } = await supabase
+  let { data: contact, error } = await supabase
     .from("contacts")
     .insert({ org_id: session.org.id, name: (conv.display_name || phone).slice(0, 120), phone, source: "WhatsApp", created_by: session.userId })
     .select("id")
     .single();
+  if (error?.message.includes("contacts_phone_uniq")) {
+    // já existe um contato com esse telefone (com ou sem o 9): liga a conversa a ele em vez de duplicar
+    ({ data: contact, error } = await supabase.from("contacts").select("id").eq("org_id", session.org.id).eq("phone_key", phoneKey(conv.phone) ?? "").limit(1).single());
+  }
   if (error || !contact) return { error: friendly(error?.message ?? "") };
   const { error: linkError } = await supabase.from("conversations").update({ contact_id: contact.id }).eq("id", conversationId).eq("org_id", session.org.id);
   if (linkError) return { error: friendly(linkError.message) };

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ConversationsView, type ChannelOption } from "@/components/conversations/conversations-view";
 import { listConversations, type ConvFilter } from "@/lib/conversation-actions";
+import { listQuickReplies } from "@/lib/quick-reply-actions";
 import { requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,8 +18,9 @@ export default async function ConversasPage({ searchParams }: PageProps<"/conver
   const selected = UUID.test(str(sp.c)) ? str(sp.c) : null;
 
   const supabase = await createClient();
-  const [initial, { data: channels }, { data: ms }] = await Promise.all([
+  const [initial, quickReplies, { data: channels }, { data: ms }] = await Promise.all([
     listConversations(filter),
+    listQuickReplies(),
     supabase.from("whatsapp_channels").select("id, name, status").eq("org_id", session.org.id).order("created_at"),
     supabase.from("memberships").select("user_id").eq("org_id", session.org.id),
   ]);
@@ -34,6 +36,8 @@ export default async function ConversasPage({ searchParams }: PageProps<"/conver
         channels={(channels ?? []) as ChannelOption[]}
         members={(profiles ?? []).map((p) => ({ id: p.id, name: p.full_name || p.email }))}
         meId={session.userId}
+        orgId={session.org.id}
+        quickReplies={quickReplies}
       />
     </div>
   );

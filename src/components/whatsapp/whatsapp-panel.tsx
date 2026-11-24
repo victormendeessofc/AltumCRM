@@ -1,5 +1,5 @@
 "use client";
-import { CircleAlert, Copy, Plug, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Smartphone, Trash2, Unplug } from "lucide-react";
+import { CircleAlert, Plug, Plus, QrCode, RefreshCw, Settings2, ShieldCheck, Smartphone, Trash2, Unplug } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
   deleteChannel,
   disconnectChannel,
   getSetupInfo,
+  reconnectCloud,
   updateChannel,
   type SetupInfo,
   type WaState,
@@ -39,20 +40,11 @@ const STATUS = {
   error: { label: "Com problema", tone: "danger" },
 } as const;
 
-async function copy(text: string, what: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success(`${what} copiado`);
-  } catch {
-    toast.error("Não foi possível copiar. Selecione e copie manualmente.");
-  }
-}
-
-export function WhatsappPanel({ channels, isAdmin, serverReady }: { channels: ChannelRow[]; isAdmin: boolean; serverReady: boolean }) {
+export function WhatsappPanel({ channels, isAdmin, serverReady, metaMissing }: { channels: ChannelRow[]; isAdmin: boolean; serverReady: boolean; metaMissing: string[] }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [qrFor, setQrFor] = useState<ChannelRow | null>(null);
-  const [setupFor, setSetupFor] = useState<ChannelRow | null>(null);
+  const [reconnectFor, setReconnectFor] = useState<ChannelRow | null>(null);
   const [editing, setEditing] = useState<ChannelRow | null>(null);
   const [removing, setRemoving] = useState<ChannelRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -147,8 +139,8 @@ export function WhatsappPanel({ channels, isAdmin, serverReady }: { channels: Ch
                           </Button>
                         )}
                         {c.provider === "cloud" && (
-                          <Button size="sm" iconLeft={Plug} onClick={() => setSetupFor(c)}>
-                            Webhook
+                          <Button size="sm" variant={c.status === "error" ? "primary" : "secondary"} iconLeft={Plug} onClick={() => setReconnectFor(c)}>
+                            Reconectar
                           </Button>
                         )}
                         <Button size="sm" iconLeft={RefreshCw} disabled={busy} onClick={() => run(c.id, () => checkChannel(c.id), "Status atualizado")}>
@@ -175,9 +167,9 @@ export function WhatsappPanel({ channels, isAdmin, serverReady }: { channels: Ch
         </ul>
       )}
 
-      <NewChannelDialog open={creating} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); router.refresh(); }} />
+      <NewChannelDialog open={creating} metaMissing={metaMissing} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); router.refresh(); }} />
       {qrFor && <QrDialog channel={qrFor} onClose={() => { setQrFor(null); router.refresh(); }} />}
-      {setupFor && <SetupDialog channel={setupFor} onClose={() => setSetupFor(null)} />}
+      {reconnectFor && <ReconnectDialog channel={reconnectFor} onClose={() => { setReconnectFor(null); router.refresh(); }} />}
       {editing && <EditDialog channel={editing} onClose={() => { setEditing(null); router.refresh(); }} />}
       <Dialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} title="Excluir este número?" description="As conversas e mensagens deste canal também serão apagadas. Não há como desfazer.">
         <div className="flex justify-end gap-2">
@@ -201,12 +193,13 @@ export function WhatsappPanel({ channels, isAdmin, serverReady }: { channels: Ch
 }
 
 // ---------------------------------------------------------------- novo canal
-function NewChannelDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+function NewChannelDialog({ open, metaMissing, onClose, onCreated }: { open: boolean; metaMissing: string[]; onClose: () => void; onCreated: (id: string) => void }) {
   const [provider, setProvider] = useState<"cloud" | "qr">("cloud");
   const [state, onSubmit, pending] = useSubmit(async (prev: WaState | undefined, fd: FormData) => {
     const r = await createChannel(prev, fd);
     if (r.ok && r.channelId) {
-      toast.success("Canal criado");
+      if (r.warning) toast.warning(`Canal salvo, mas falta uma etapa: ${r.warning}`, { duration: 15_000 });
+      else toast.success(provider === "cloud" ? "WhatsApp conectado" : "Canal criado");
       onCreated(r.channelId);
     }
     return r;
@@ -228,16 +221,40 @@ function NewChannelDialog({ open, onClose, onCreated }: { open: boolean; onClose
         </Field>
         {provider === "cloud" ? (
           <>
-            <Field label="ID do número de telefone (Meta)">
-              <input name="phone_number_id" required inputMode="numeric" placeholder="Ex.: 109876543210987" className={fieldCls} autoComplete="off" />
-            </Field>
+            {metaMissing.length > 0 && (
+              <p className="rounded-2xl bg-warning-soft px-4 py-3 text-[13px] text-warning">
+                O app da Meta da Agência ainda não foi configurado no servidor (falta {metaMissing.join(" e ")} na Vercel). Veja docs/ATENDIMENTO.md.
+              </p>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="ID do número (Phone Number ID)">
+                <input name="phone_number_id" required inputMode="numeric" placeholder="Ex.: 100234567890123" className={fieldCls} autoComplete="off" aria-invalid={state?.field === "phone_number_id" || undefined} />
+              </Field>
+              <Field label="ID da conta do WhatsApp Business">
+                <input name="waba_id" required inputMode="numeric" placeholder="Ex.: 100234567890456" className={fieldCls} autoComplete="off" aria-invalid={state?.field === "waba_id" || undefined} />
+              </Field>
+            </div>
             <Field label="Token de acesso permanente">
-              <input name="access_token" required type="password" placeholder="Cole o token gerado na Meta" className={fieldCls} autoComplete="off" />
+              <input name="access_token" required type="password" placeholder="Cole o token do usuário do sistema" className={fieldCls} autoComplete="off" aria-invalid={state?.field === "access_token" || undefined} />
             </Field>
-            <Field label="Segredo do aplicativo (App Secret) — recomendado">
-              <input name="app_secret" type="password" placeholder="Valida que as mensagens vêm mesmo da Meta" className={fieldCls} autoComplete="off" />
+            <Field label="PIN de verificação em duas etapas (6 dígitos)">
+              <input name="pin" inputMode="numeric" maxLength={6} pattern="\d{6}" placeholder="Obrigatório na primeira conexão do número" className={fieldCls} autoComplete="off" aria-invalid={state?.field === "pin" || undefined} />
             </Field>
-            <p className="text-[13px] text-fg-3">Depois de criar, abra Webhook no canal para copiar o endereço e o token de verificação para o painel da Meta.</p>
+            <details className="rounded-2xl bg-raised px-4 py-3 text-[13px] text-fg-2">
+              <summary className="cursor-pointer font-medium text-fg">Onde encontro cada dado?</summary>
+              <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5">
+                <li>
+                  <b className="font-medium text-fg">ID do número</b> e <b className="font-medium text-fg">ID da conta</b>: no app da Agência em developers.facebook.com, WhatsApp → Configuração da API (ou no WhatsApp Manager). São números longos, não o telefone.
+                </li>
+                <li>
+                  <b className="font-medium text-fg">Token permanente</b>: Configurações do negócio → Usuários do sistema → escolha o usuário → Gerar token, no app da Agência, com as permissões whatsapp_business_management e whatsapp_business_messaging. O usuário precisa ter a conta do WhatsApp atribuída (Adicionar ativos → Contas do WhatsApp). O token de 24 horas da tela de testes não serve.
+                </li>
+                <li>
+                  <b className="font-medium text-fg">PIN</b>: WhatsApp Manager → Números de telefone → Verificação em duas etapas. Se ainda não existir, crie lá.
+                </li>
+                <li>Ao salvar, o Altum confere o número, registra na API e liga a conta ao app da Agência. Não é preciso configurar webhook.</li>
+              </ol>
+            </details>
           </>
         ) : (
           <>
@@ -250,13 +267,13 @@ function NewChannelDialog({ open, onClose, onCreated }: { open: boolean; onClose
             <p className="text-[13px] text-fg-3">Se o servidor já estiver configurado na hospedagem do Altum, deixe os dois campos em branco. Depois de criar, clique em Ler QR Code.</p>
           </>
         )}
-        <FormError message={state?.error} />
+        <MetaError error={state?.error} detail={state?.detail} />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
           <Button type="submit" variant="primary" disabled={pending}>
-            {pending ? "Criando…" : "Criar canal"}
+            {pending ? (provider === "cloud" ? "Conectando à Meta…" : "Criando…") : provider === "cloud" ? "Conectar" : "Criar canal"}
           </Button>
         </div>
       </form>
@@ -332,50 +349,53 @@ function QrDialog({ channel, onClose }: { channel: ChannelRow; onClose: () => vo
   );
 }
 
-// ---------------------------------------------------------------- webhook da API oficial
-function SetupDialog({ channel, onClose }: { channel: ChannelRow; onClose: () => void }) {
-  const [info, setInfo] = useState<SetupInfo | { error: string }>();
-  useEffect(() => {
-    let alive = true;
-    getSetupInfo(channel.id).then((r) => alive && setInfo(r));
-    return () => {
-      alive = false;
-    };
-  }, [channel.id]);
+// ---------------------------------------------------------------- erro da Meta (texto + etapa/código para o suporte)
+function MetaError({ error, detail }: { error?: string; detail?: string }) {
+  if (!error) return null;
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()} title="Webhook da API oficial" description="Cole estes dois dados no painel da Meta para o Altum receber as mensagens.">
-      {!info ? (
-        <p className="text-[13px] text-fg-3">Carregando…</p>
-      ) : "error" in info ? (
-        <FormError message={info.error} />
-      ) : (
-        <div className="flex flex-col gap-4">
-          <CopyField label="URL de callback" value={info.webhookUrl} />
-          <CopyField label="Token de verificação" value={info.verifyToken} />
-          <ol className="list-decimal pl-5 text-[13px] text-fg-2">
-            <li>Em developers.facebook.com, abra seu app e vá em WhatsApp, Configuração.</li>
-            <li>Em Webhook, clique em Editar e cole a URL e o token acima. Salve.</li>
-            <li>Assine o campo <b className="font-medium text-fg">messages</b>.</li>
-            <li>Volte aqui e clique em Verificar no canal.</li>
-          </ol>
-          <p className="text-[13px] text-fg-3">Trate a URL e o token como senha: quem os tiver pode enviar mensagens falsas para o seu atendimento.</p>
-        </div>
-      )}
-    </Dialog>
+    <div className="flex flex-col gap-1">
+      <FormError message={error} />
+      {detail && <p className="num text-[11px] text-fg-3">{detail}</p>}
+    </div>
   );
 }
 
-function CopyField({ label, value }: { label: string; value: string }) {
+// ---------------------------------------------------------------- reconectar (API oficial)
+function ReconnectDialog({ channel, onClose }: { channel: ChannelRow; onClose: () => void }) {
+  const [pin, setPin] = useState("");
+  const [result, setResult] = useState<WaState>();
+  const [pending, start] = useTransition();
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-medium text-fg-2">{label}</span>
-      <div className="flex items-center gap-2">
-        <input readOnly value={value} onFocus={(e) => e.currentTarget.select()} className={`${fieldCls} num text-[13px]`} />
-        <Button iconLeft={Copy} onClick={() => copy(value, label)}>
-          Copiar
-        </Button>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()} title="Reconectar à Meta" description={`Refaz o registro do número e liga de novo a conta ao app da Agência (${channel.name}).`}>
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          start(async () => {
+            const r = await reconnectCloud(channel.id, pin);
+            setResult(r);
+            if (r.ok) {
+              toast.success("WhatsApp reconectado");
+              onClose();
+            }
+          });
+        }}
+      >
+        <Field label="PIN de verificação em duas etapas (opcional)">
+          <input value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="Informe se o número precisar ser registrado de novo" className={fieldCls} autoComplete="off" autoFocus />
+        </Field>
+        <p className="text-[13px] text-fg-3">Use quando o canal estiver com problema ou as mensagens pararem de chegar. Sem PIN, o Altum só refaz a ligação da conta ao app.</p>
+        <MetaError error={result?.error} detail={result?.detail} />
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primary" disabled={pending}>
+            {pending ? "Reconectando…" : "Reconectar"}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 
@@ -411,9 +431,10 @@ function EditDialog({ channel, onClose }: { channel: ChannelRow; onClose: () => 
             <Field label={`Token de acesso ${has("access_token") ? "(salvo — preencha para trocar)" : ""}`}>
               <input name="access_token" type="password" className={fieldCls} autoComplete="off" placeholder={has("access_token") ? "••••••••••" : ""} />
             </Field>
-            <Field label={`App Secret ${has("app_secret") ? "(salvo — preencha para trocar)" : "(não configurado)"}`}>
-              <input name="app_secret" type="password" className={fieldCls} autoComplete="off" placeholder={has("app_secret") ? "••••••••••" : ""} />
+            <Field label={`ID da conta do WhatsApp Business ${has("waba_id") ? "(salvo — preencha para trocar)" : "(obrigatório para receber mensagens)"}`}>
+              <input name="waba_id" inputMode="numeric" className={fieldCls} autoComplete="off" placeholder={has("waba_id") ? "••••••••••" : "Ex.: 100234567890456"} />
             </Field>
+            <p className="text-[13px] text-fg-3">Depois de trocar o token ou a conta, clique em Reconectar no canal.</p>
           </>
         ) : (
           <>

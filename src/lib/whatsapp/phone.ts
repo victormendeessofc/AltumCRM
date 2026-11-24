@@ -25,3 +25,13 @@ export function phoneFromJid(jid: unknown): string | null {
   if (!server || !["s.whatsapp.net", "c.us"].includes(server)) return null;
   return normalizePhone(user.split(":")[0]);
 }
+
+/**
+ * Chave de telefone para achar a mesma pessoa (espelho de public.phone_key no banco). No Brasil: DDI + DDD + últimos
+ * 8 dígitos, para o celular com e sem o 9 virar a mesma chave. Fora do Brasil, os dígitos com DDI.
+ */
+export function phoneKey(input: string | null | undefined): string | null {
+  const d = normalizePhone(String(input ?? ""));
+  if (!d) return null;
+  return /^55\d{10,11}$/.test(d) ? `55${d.slice(2, 4)}${d.slice(-8)}` : d;
+}

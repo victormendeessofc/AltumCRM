@@ -19,6 +19,7 @@ export interface ImportResult {
 
 function friendly(message: string): string {
   if (message.includes("contacts_email_uniq")) return "Já existe um contato com esse e-mail.";
+  if (message.includes("contacts_phone_uniq")) return "Já existe um contato com esse telefone (o Altum considera o mesmo celular com e sem o 9). Busque por ele em Contatos.";
   if (message.includes("row-level security")) return "Você não tem permissão para isso.";
   if (message.includes("violates check constraint")) return "Algum campo está fora do limite permitido.";
   return "Não foi possível salvar. Tente de novo.";

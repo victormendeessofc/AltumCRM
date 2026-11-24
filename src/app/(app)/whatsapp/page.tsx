@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { WhatsappPanel, type ChannelRow } from "@/components/whatsapp/whatsapp-panel";
 import { requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
+import { agencyAppMissing } from "@/lib/whatsapp/meta";
 import { internalKey } from "@/lib/whatsapp/server";
 
 export const metadata: Metadata = { title: "WhatsApp" };
@@ -26,7 +27,7 @@ export default async function WhatsappPage() {
 
   return (
     <div className="animate-in-up">
-      <WhatsappPanel channels={channels} isAdmin={session.org.role === "admin"} serverReady={internalKey() !== null} />
+      <WhatsappPanel channels={channels} isAdmin={session.org.role === "admin"} serverReady={internalKey() !== null} metaMissing={agencyAppMissing()} />
     </div>
   );
 }

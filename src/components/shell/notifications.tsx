@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { listNotifications, markAllRead, markRead, type NotificationItem } from "@/lib/shell-actions";
+import { useRealtime } from "@/lib/use-realtime";
 
 function ago(iso: string): string {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -32,16 +33,19 @@ export function Notifications() {
     }
   }, []);
 
+  // tempo real: o RLS só entrega as notificações do próprio usuário
+  const live = useRealtime([{ table: "notifications" }], () => refresh());
+
   useEffect(() => {
     const first = setTimeout(refresh, 0);
     const t = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
-    }, 60_000);
+    }, live ? 300_000 : 60_000);
     return () => {
       clearTimeout(first);
       clearInterval(t);
     };
-  }, [refresh]);
+  }, [refresh, live]);
 
   return (
     <Popover.Root

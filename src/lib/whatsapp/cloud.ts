@@ -113,6 +113,25 @@ function describe(m: Msg): string {
   }
 }
 
+/** IDs de número (phone_number_id) presentes no aviso. O webhook único da Agência usa isso para achar os canais. */
+export function phoneNumberIds(body: unknown): string[] {
+  const ids = new Set<string>();
+  const entries = (body as { entry?: unknown[] } | null)?.entry;
+  if (!Array.isArray(entries)) return [];
+  for (const e of entries) {
+    for (const ch of ((e as { changes?: unknown[] }).changes ?? []) as { field?: string; value?: { metadata?: { phone_number_id?: unknown } } }[]) {
+      const id = ch.field === "messages" ? ch.value?.metadata?.phone_number_id : undefined;
+      if (typeof id === "string" && /^\d{5,30}$/.test(id)) ids.add(id);
+    }
+  }
+  return [...ids];
+}
+
+/** Assinatura conferida contra vários segredos (um por app da Meta); basta um bater. */
+export function verifySignatureAny(rawBody: string, header: string | null, secrets: string[]): boolean {
+  return secrets.some((s) => verifySignature(rawBody, header, s));
+}
+
 /** Extrai mensagens recebidas e atualizações de entrega do corpo do webhook. Ignora o que não for do número do canal. */
 export function parseWebhook(body: unknown, phoneNumberId: string | null): { messages: InboundMessage[]; statuses: StatusUpdate[] } {
   const out = { messages: [] as InboundMessage[], statuses: [] as StatusUpdate[] };

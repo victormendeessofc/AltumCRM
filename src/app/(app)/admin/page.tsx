@@ -4,6 +4,8 @@ import Link from "next/link";
 import { AdminPanel, type InviteRow, type MemberRow } from "@/components/admin/admin-panel";
 import { OrgSettings } from "@/components/admin/org-settings";
 import { PipelinesEditor, type PipelineFull } from "@/components/admin/pipelines-editor";
+import { QuickRepliesEditor } from "@/components/admin/quick-replies-editor";
+import { listQuickReplies } from "@/lib/quick-reply-actions";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { describeAudit } from "@/lib/audit-labels";
@@ -17,8 +19,12 @@ const TABS = [
   { key: "usuarios", label: "Usuários" },
   { key: "organizacao", label: "Organização" },
   { key: "funis", label: "Funis" },
+  { key: "respostas", label: "Respostas rápidas" },
   { key: "auditoria", label: "Auditoria" },
 ] as const;
+
+/** Abas que qualquer membro vê (as demais são só do administrador). */
+const OPEN_TABS = ["usuarios", "respostas"];
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -115,7 +121,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       </div>
 
       <nav aria-label="Seções" className="flex w-fit flex-wrap gap-1 rounded-full border border-line bg-raised p-1">
-        {TABS.filter((t) => isAdmin || t.key === "usuarios").map((t) => (
+        {TABS.filter((t) => isAdmin || OPEN_TABS.includes(t.key)).map((t) => (
           <Link key={t.key} href={t.key === "usuarios" ? "/admin" : `/admin?tab=${t.key}`} aria-current={t.key === tab ? "page" : undefined} className={cn("inline-flex h-8 items-center rounded-full px-4 text-[13px] font-medium no-underline", t.key === tab ? "bg-selected text-fg" : "text-fg-2 hover:text-fg")}>
             {t.label}
           </Link>
@@ -125,6 +131,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       {tab === "usuarios" && <Users orgId={session.org.id} userId={session.userId} isAdmin={isAdmin} />}
       {tab === "organizacao" && <OrgSettings name={org?.name ?? session.org.name} goal={Number(org?.monthly_goal ?? 0)} isAdmin={isAdmin} />}
       {tab === "funis" && isAdmin && <Pipelines orgId={session.org.id} supabase={supabase} />}
+      {tab === "respostas" && <QuickRepliesEditor items={await listQuickReplies()} canEdit={session.org.role !== "seller"} />}
       {tab === "auditoria" && isAdmin && <Audit orgId={session.org.id} supabase={supabase} />}
     </div>
   );

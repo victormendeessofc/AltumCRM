@@ -6,12 +6,19 @@ import { requireSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import * as cloud from "@/lib/whatsapp/cloud";
 import * as evo from "@/lib/whatsapp/evolution";
+import * as meta from "@/lib/whatsapp/meta";
 import { NOT_CONFIGURED, internalKey, internalRpc, loadChannel, webhookUrl, type ServerChannel } from "@/lib/whatsapp/server";
 
 export interface WaState {
   ok?: boolean;
   error?: string;
   channelId?: string;
+  /** Campo do formulário a corrigir. */
+  field?: string;
+  /** Linha técnica (etapa, código e trace id da Meta) para levar ao suporte. */
+  detail?: string;
+  /** Canal salvo, mas uma etapa (registro ou inscrição) falhou. */
+  warning?: string;
 }
 export interface SetupInfo {
   webhookUrl: string;
@@ -63,14 +70,41 @@ export async function createChannel(_: WaState | undefined, fd: FormData): Promi
 
   let externalId: string;
   const secrets: Record<string, string> = {};
+  let pin = "";
   if (provider === "cloud") {
     const phoneId = text(fd, "phone_number_id");
+    const wabaId = text(fd, "waba_id");
     const token = text(fd, "access_token");
-    if (!/^\d{5,30}$/.test(phoneId)) return { error: "O ID do número de telefone tem só dígitos (está no painel da Meta, em WhatsApp > Configuração da API)." };
-    if (token.length < 20) return { error: "Cole o token de acesso permanente gerado na Meta." };
+    pin = text(fd, "pin");
+    if (!/^\d{5,30}$/.test(phoneId)) return { error: "O ID do número tem só dígitos: é o número de identificação que aparece em Meta → WhatsApp → Configuração da API, não o telefone em si.", field: "phone_number_id" };
+    if (!/^\d{5,30}$/.test(wabaId)) return { error: "O ID da conta do WhatsApp Business tem só dígitos. Copie em Meta → WhatsApp → Configuração da API.", field: "waba_id" };
+    if (token.length < 20) return { error: "Cole o token de acesso permanente gerado na Meta.", field: "access_token" };
+    if (pin && !/^\d{6}$/.test(pin)) return { error: "O PIN de verificação em duas etapas tem 6 dígitos.", field: "pin" };
+    const missing = meta.agencyAppMissing();
+    if (missing.length) return { error: `O app da Meta da Agência ainda não foi configurado no servidor (falta ${missing.join(" e ")} na Vercel).` };
+
+    // 1. o token lê o número?  2. o número é mesmo dessa WABA?  (nada é salvo se falhar)
+    try {
+      await meta.verifyNumber(phoneId, token);
+    } catch (e) {
+      return metaFail(e, "verify_number", { phoneNumberId: phoneId, wabaId });
+    }
+    try {
+      const numbers = await meta.wabaNumbers(wabaId, token);
+      if (!numbers.some((n) => n.id === phoneId)) {
+        const list = numbers.map((n) => `${n.display_phone_number ?? "?"} (${n.id})`).join(", ");
+        return {
+          error: `O número ${phoneId} não pertence à conta WhatsApp Business ${wabaId}. ${list ? `Essa conta tem: ${list}. ` : "Essa conta não tem números. "}Confira os dois IDs em Meta → WhatsApp → Configuração da API.`,
+          field: "waba_id",
+          detail: "Etapa: waba_phone_numbers",
+        };
+      }
+    } catch (e) {
+      return metaFail(e, "waba_phone_numbers", { phoneNumberId: phoneId, wabaId });
+    }
     externalId = phoneId;
     secrets.access_token = token;
-    if (text(fd, "app_secret")) secrets.app_secret = text(fd, "app_secret");
+    secrets.waba_id = wabaId;
   } else if (provider === "qr") {
     const check = evo.evolutionConfig({ api_url: text(fd, "api_url"), api_key: text(fd, "api_key") });
     if ("error" in check) return { error: check.error };
@@ -83,9 +117,73 @@ export async function createChannel(_: WaState | undefined, fd: FormData): Promi
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_whatsapp_channel", { p_org: session.org.id, p_provider: provider, p_name: name, p_external_id: externalId, p_secrets: secrets });
-  if (error) return { error: friendly(error.message) };
+  if (error) {
+    if (error.message.includes("whatsapp_channels_cloud_number_uniq")) return { error: "Esse número já está conectado no Altum (nesta ou em outra organização). Cada número só pode estar em um lugar.", field: "phone_number_id" };
+    return { error: friendly(error.message) };
+  }
+  const channelId = String(data);
   revalidatePath("/whatsapp");
-  return { ok: true, channelId: String(data) };
+  if (provider !== "cloud") return { ok: true, channelId };
+
+  // 3. registrar (com PIN) e 4. inscrever a WABA no app. O canal já fica salvo: dá para corrigir só o PIN depois.
+  const ch = await loadChannel(channelId);
+  if (!ch) return { ok: true, channelId };
+  const setup = await setupCloud(ch, pin);
+  return setup.ok ? { ok: true, channelId } : { ok: true, channelId, warning: setup.error, detail: setup.detail };
+}
+
+/** Registra (se veio PIN) e inscreve a WABA no app da Agência; grava o status do canal. */
+async function setupCloud(ch: ServerChannel, pin: string): Promise<{ ok: true } | { ok: false; error: string; detail?: string }> {
+  const token = ch.secrets.access_token;
+  const wabaId = ch.secrets.waba_id;
+  const phoneId = ch.external_id ?? "";
+  const ctx = { phoneNumberId: phoneId, wabaId };
+  const fail = async (step: meta.MetaStep, e: unknown) => {
+    const x = meta.explainMetaError(e, step, ctx);
+    await internalRpc("wa_set_channel_status", { p_channel: ch.id, p_status: "error", p_detail: x.summary.slice(0, 300), p_phone: null });
+    revalidatePath("/whatsapp");
+    return { ok: false as const, error: x.summary, detail: meta.metaRef(x) };
+  };
+  if (!token || !wabaId) return { ok: false, error: "Falta o token ou o ID da conta do WhatsApp Business. Edite o canal." };
+
+  let info: meta.PhoneInfo;
+  try {
+    info = await meta.verifyNumber(phoneId, token);
+  } catch (e) {
+    return fail("verify_number", e);
+  }
+  if (pin) {
+    try {
+      await meta.registerNumber(phoneId, token, pin);
+    } catch (e) {
+      return fail("register", e);
+    }
+  }
+  try {
+    await meta.subscribeWaba(wabaId, token);
+  } catch (e) {
+    return fail("subscribe_waba", e);
+  }
+  const name = info.verified_name ? `Nome verificado: ${info.verified_name}` : null;
+  await internalRpc("wa_set_channel_status", { p_channel: ch.id, p_status: "connected", p_detail: name, p_phone: info.display_phone_number ?? null });
+  revalidatePath("/whatsapp");
+  return { ok: true };
+}
+
+function metaFail(e: unknown, step: meta.MetaStep, ctx: { phoneNumberId?: string; wabaId?: string }): WaState {
+  const x = meta.explainMetaError(e, step, ctx);
+  return { error: x.summary, field: x.field ?? undefined, detail: meta.metaRef(x) };
+}
+
+/** Refaz registro (com PIN, se informado) e inscrição no app. Para o botão "Reconectar". */
+export async function reconnectCloud(channelId: string, pin: string): Promise<WaState> {
+  const r = await adminChannel(channelId);
+  if ("error" in r) return { error: r.error };
+  if (r.channel.provider !== "cloud") return { error: "Este canal não usa a API oficial." };
+  const p = String(pin ?? "").trim();
+  if (p && !/^\d{6}$/.test(p)) return { error: "O PIN de verificação em duas etapas tem 6 dígitos.", field: "pin" };
+  const s = await setupCloud(r.channel, p);
+  return s.ok ? { ok: true } : { error: s.error, detail: s.detail };
 }
 
 /** Dados que o administrador cola no painel da Meta (endereço do webhook e token de verificação). */
@@ -114,7 +212,8 @@ export async function updateChannel(_: WaState | undefined, fd: FormData): Promi
     if (error) return { error: friendly(error.message) };
   }
   const secrets: Record<string, string> = {};
-  for (const k of ["access_token", "app_secret", "api_url", "api_key"]) if (text(fd, k)) secrets[k] = text(fd, k);
+  for (const k of ["access_token", "app_secret", "waba_id", "api_url", "api_key"]) if (text(fd, k)) secrets[k] = text(fd, k);
+  if (secrets.waba_id && !/^\d{5,30}$/.test(secrets.waba_id)) return { error: "O ID da conta do WhatsApp Business tem só dígitos.", field: "waba_id" };
   if (secrets.api_url && "error" in evo.evolutionConfig({ api_url: secrets.api_url, api_key: secrets.api_key || "x" })) {
     return { error: "O endereço do servidor precisa começar com https:// e ser público." };
   }
@@ -173,6 +272,22 @@ export async function checkChannel(channelId: string): Promise<CheckResult> {
         status = "connected";
         phone = c.phone;
         detail = c.name ? `Nome verificado: ${c.name}` : undefined;
+        // Credenciais válidas + WABA sem app inscrito = "conectado, mas as mensagens não chegam".
+        if (ch.secrets.waba_id) {
+          try {
+            const apps = await meta.subscribedApps(ch.secrets.waba_id, ch.secrets.access_token);
+            const appId = process.env.META_APP_ID;
+            if (apps.length === 0) {
+              status = "error";
+              detail = "A conta WhatsApp Business não está inscrita no app da Agência, então as mensagens não chegam. Clique em Reconectar.";
+            } else if (appId && !apps.some((a) => a.id === appId)) {
+              status = "error";
+              detail = `A conta está inscrita em outro app (${apps.map((a) => a.name ?? a.id).join(", ")}), não no app da Agência. Clique em Reconectar.`;
+            }
+          } catch {
+            // o token pode não ter whatsapp_business_management e ainda assim enviar: não derruba o status
+          }
+        }
       } else {
         status = "error";
         detail = c.error;
