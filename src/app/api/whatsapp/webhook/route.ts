@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
     for (const s of statuses) {
       const r = await internalRpc("wa_message_status", { p_channel: channelId, p_external_id: s.id, p_status: s.status });
       if (r.error) failed = true;
+      // motivo da falha: melhor esforço (se a migração 11 ainda não foi aplicada, só não grava o texto)
+      else if (s.error) await internalRpc("wa_message_error", { p_channel: channelId, p_external_id: s.id, p_error: s.error });
     }
   }
   // 500 faz a Meta tentar de novo; mensagens repetidas são descartadas pelo banco (id externo único).

@@ -82,6 +82,37 @@ describe("POST (avisos da Meta)", () => {
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 
+  const failedStatus = (numberId: string) =>
+    JSON.stringify({
+      entry: [
+        {
+          changes: [
+            {
+              field: "messages",
+              value: {
+                metadata: { phone_number_id: numberId },
+                statuses: [{ id: "wamid.out", status: "failed", errors: [{ code: 131026, title: "Message undeliverable", error_data: { details: "recipient unavailable" } }] }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+  it("falha avisada depois pela Meta grava o motivo", async () => {
+    rpc.mockImplementation(async (fn: string) => (fn === "wa_channel_by_number" ? { data: "canal-1", error: null } : { data: null, error: null }));
+    expect((await post(failedStatus("100000000000111"))).status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith("wa_message_status", { p_channel: "canal-1", p_external_id: "wamid.out", p_status: "failed" });
+    expect(rpc).toHaveBeenCalledWith("wa_message_error", { p_channel: "canal-1", p_external_id: "wamid.out", p_error: expect.stringContaining("código 131026") });
+  });
+
+  it("se o banco ainda não tem a função do motivo, segue normal (200)", async () => {
+    rpc.mockImplementation(async (fn: string) =>
+      fn === "wa_channel_by_number" ? { data: "canal-1", error: null } : fn === "wa_message_error" ? { data: null, error: "function does not exist" } : { data: null, error: null },
+    );
+    expect((await post(failedStatus("100000000000111"))).status).toBe(200);
+  });
+
   it("erro no banco devolve 500 para a Meta tentar de novo", async () => {
     rpc.mockImplementation(async (fn: string) => (fn === "wa_channel_by_number" ? { data: "canal-1", error: null } : { data: null, error: "falhou" }));
     expect((await post(inbound("100000000000111"))).status).toBe(500);

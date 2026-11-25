@@ -37,6 +37,18 @@ describe("WhatsApp pelo app da Agência", () => {
     await channel(V.b, y, "qr", "inst-2");
   });
 
+  it("motivo de falha avisado depois: grava só em mensagem que falhou, e só com a chave interna", async () => {
+    const ch = (await rows("select id from whatsapp_channels where external_id = '111222333'"))[0].id;
+    const conv = (await rows("insert into conversations (org_id, channel_id, phone) values ($1, $2, '5511900000000') returning id", [x, ch]))[0].id;
+    const ok = (await rows("insert into messages (org_id, conversation_id, direction, body, status, external_id) values ($1, $2, 'out', 'oi', 'sent', 'w-ok') returning id", [x, conv]))[0].id;
+    const bad = (await rows("insert into messages (org_id, conversation_id, direction, body, status, external_id) values ($1, $2, 'out', 'oi', 'failed', 'w-bad') returning id", [x, conv]))[0].id;
+    await as(null, () => rows("select public.wa_message_error($1, $2, 'w-bad', 'Não entregue (código 131026)')", [KEY, ch]));
+    await as(null, () => rows("select public.wa_message_error($1, $2, 'w-ok', 'não deveria gravar')", [KEY, ch]));
+    expect((await rows("select error from messages where id = $1", [bad]))[0].error).toBe("Não entregue (código 131026)");
+    expect((await rows("select error from messages where id = $1", [ok]))[0].error).toBeNull();
+    expect(await as(null, () => fails(() => rows("select public.wa_message_error('errada', $1, 'w-bad', 'x')", [ch])))).toBe(true);
+  });
+
   it("o webhook único acha o canal pelo phone_number_id, só com a chave interna", async () => {
     const r = await as(null, () => rows("select public.wa_channel_by_number($1, '111222333') as id", [KEY]));
     expect(r[0].id).toBeTruthy();

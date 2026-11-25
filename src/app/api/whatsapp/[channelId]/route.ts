@@ -60,6 +60,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     for (const s of statuses) {
       const r = await internalRpc("wa_message_status", { p_channel: ch.id, p_external_id: s.id, p_status: s.status });
       if (r.error) failed = true;
+      else if (s.error) await internalRpc("wa_message_error", { p_channel: ch.id, p_external_id: s.id, p_error: s.error });
     }
   } else {
     const ev = evo.parseWebhook(body);

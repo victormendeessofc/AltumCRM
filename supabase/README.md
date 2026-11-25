@@ -14,6 +14,7 @@
 | `20261124000100_quick_replies.sql` | Respostas rápidas (atalhos / nas Conversas), com auditoria |
 | `20261124000200_contacts_tags_fields.sql` | Telefone único (junta duplicados automaticamente), etiquetas e campos personalizados nos contatos |
 | `20261124000300_whatsapp_meta_app.sql` | WhatsApp pelo app da Meta da Agência: webhook único e um número por organização |
+| `20261125000000_message_failure_reason.sql` | Guarda o motivo quando a Meta avisa a falha de entrega depois do envio |
 
 ## Projeto novo (ex.: produção)
 

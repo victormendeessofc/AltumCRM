@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { normalizePhone, withNinthDigit } from "./phone";
+import { normalizePhone } from "./phone";
 import { safeFetch } from "./net";
 
 /** API oficial do WhatsApp (Cloud API da Meta). */
@@ -21,10 +21,12 @@ export interface InboundMessage {
 export interface StatusUpdate {
   id: string;
   status: "sent" | "delivered" | "read" | "failed";
+  /** Motivo, quando a Meta avisa a falha depois de ter aceitado o envio. */
+  error?: string;
 }
 
 /** Códigos de erro da Meta que o usuário consegue entender e resolver. */
-function friendlyCloudError(code: number | undefined, message: string): string {
+export function friendlyCloudError(code: number | undefined, message: string): string {
   if (code === 131047 || code === 131051) return "Passaram mais de 24 horas desde a última mensagem do cliente. Nesse caso o WhatsApp só permite enviar um modelo de mensagem aprovado.";
   if (code === 190 || code === 102) return "O token de acesso expirou ou é inválido. Gere um novo no painel da Meta e atualize o canal.";
   if (code === 131030) return "Esse número não está na lista de destinatários permitidos (modo de teste da Meta).";
@@ -38,7 +40,9 @@ export async function sendText(phoneNumberId: string, token: string, to: string,
     const res = await safeFetch(`${GRAPH}/${encodeURIComponent(phoneNumberId)}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: withNinthDigit(to), type: "text", text: { preview_url: false, body } }),
+      // Responde para o número EXATAMENTE como o WhatsApp mandou (wa_id). Contas brasileiras antigas chegam sem o 9 e só
+      // recebem nesse formato; o 9 é recolocado apenas na exibição (formatPhone).
+      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { preview_url: false, body } }),
     });
     const json = (await res.json().catch(() => ({}))) as { messages?: { id: string }[]; error?: { code?: number; message?: string } };
     if (res.ok && json.messages?.[0]?.id) return { ok: true, id: json.messages[0].id };
@@ -153,8 +157,12 @@ export function parseWebhook(body: unknown, phoneNumberId: string | null): { mes
         const ts = Number(m.timestamp);
         out.messages.push({ phone, name: names.get(m.from ?? "") ?? "", body: describe(m), id: m.id, at: Number.isFinite(ts) && ts > 0 ? new Date(ts * 1000) : new Date() });
       }
-      for (const s of (v.statuses as { id?: string; status?: string }[] | undefined) ?? []) {
-        if (s.id && (s.status === "sent" || s.status === "delivered" || s.status === "read" || s.status === "failed")) out.statuses.push({ id: s.id, status: s.status });
+      type RawStatus = { id?: string; status?: string; errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[] };
+      for (const s of (v.statuses as RawStatus[] | undefined) ?? []) {
+        if (!s.id || !(s.status === "sent" || s.status === "delivered" || s.status === "read" || s.status === "failed")) continue;
+        const e = s.status === "failed" ? s.errors?.[0] : undefined;
+        const why = e ? `${friendlyCloudError(e.code, e.error_data?.details ?? e.message ?? e.title ?? "")}${e.code ? ` (código ${e.code})` : ""}` : undefined;
+        out.statuses.push({ id: s.id, status: s.status, ...(why ? { error: why } : {}) });
       }
     }
   }
